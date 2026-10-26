@@ -2,6 +2,7 @@
 name = "chatgpt-controller-desktop"
 version = "0.1.0"
 description = "Local ChatGPT browser controller and API manager"
+license = "AGPL-3.0-or-later"
 authors = ["ChatGPT Controller Contributors"]
 edition = "2024"
 

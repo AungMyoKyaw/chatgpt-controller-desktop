@@ -95,6 +95,10 @@ An already-running server at the configured port is detected rather than killed;
 
 The included `PRODUCT.md` and `DESIGN.md` document the **Impeccable Operate-mode** design: *Quiet Control Room*, light-first macOS styling, usable status-first actions, explicit error states and dark mode. The source is Svelte 5 with Tailwind CSS 4, custom tokens and Lucide icons.
 
+## License
+
+This project and the included Relay sample are licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](LICENSE).
+
 ## Limitations and safety
 
 - These are *undocumented internal browser workflows*, not the official OpenAI API. ChatGPT could change its website.

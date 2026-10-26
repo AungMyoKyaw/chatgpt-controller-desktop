@@ -2,6 +2,7 @@
 name = "relay-desktop"
 version = "0.1.0"
 description = "Relay — local ChatGPT conversation workbench"
+license = "AGPL-3.0-or-later"
 authors = ["Relay"]
 edition = "2024"
 
