@@ -1,128 +1,216 @@
-# ChatGPT Controller (macOS)
+<div align="center">
 
-**ChatGPT Controller** is a native **Tauri 2 + Rust + Svelte 5 + Tailwind CSS 4** app for turning a person's locally signed-in ChatGPT browser into a **private localhost conversation API**.
+<img src="static/controller-icon.svg" alt="ChatGPT Controller icon" width="76" height="76">
 
-This is a new standalone controller product. **Relay** is included separately in `samples/relay` as a sample client; the controller does not depend on Relay.
+# ChatGPT Controller
 
-## Product workflow
+**Your signed-in ChatGPT browser. Your own local API.**
 
-1. Start the ChatGPT Controller desktop app.
-2. Select **Open ChatGPT login** to launch a dedicated visible Chrome profile. The user signs in directly to ChatGPT in Chrome, not in the controller.
-3. Click **Start controller** to launch the packaged Bun HTTP service, or adopt an already-running compatible local service.
-4. Open **API access** to copy `http://127.0.0.1:8791`, reveal/copy the **controller-issued** local API key, or **Export API config (JSON)** to your clipboard.
-5. Open **API explorer** to run an authenticated conversation-list request or intentionally create a test conversation.
-6. Run `samples/relay` to see a separate Tauri/Svelte chat client using the same API.
+A native macOS control center that exposes a private, authenticated HTTP interface to a ChatGPT session you open and sign in to yourself.
 
-**No browser cookies, OAuth tokens, passwords, or account-specific API keys are exported.** The controller key is generated locally and authorizes the localhost bridge only.
+[![Version](https://img.shields.io/badge/version-0.1.0-315BD4)](https://github.com/AungMyoKyaw/chatgpt-controller-desktop)
+[![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-1B2B31)](#requirements)
+[![Tauri](https://img.shields.io/badge/Tauri-2-315BD4)](https://tauri.app/)
+[![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00)](https://svelte.dev/)
+[![Rust](https://img.shields.io/badge/Rust-native%20backend-1B2B31)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-087F69)](LICENSE)
 
-## Requirements
+**[Quick start](#quick-start)** · **[Features](#features)** · **[API](#localhost-api)** · **[Architecture](#architecture)** · **[Development](#development)** · **[Limitations](#limitations)**
 
-- macOS Apple Silicon and Chrome installed.
-- **Playwright CLI** (`playwright-cli`; install with `bun add -g @playwright/cli`) installed and accessible in `~/.bun/bin`, `~/.local/bin`, `~/.local/share/mise/shims`, Homebrew's bin, or `PATH`. The controller detects whether it is installed.
-- A ChatGPT account and a signed-in session in the dedicated Chrome profile.
-- Local controller address `127.0.0.1:8791` must be available.
+</div>
 
-**Important current packaging limitation:** `@playwright/cli` is *not* bundled with this v0.1 app. A compiled Playwright CLI packaging attempt failed on unresolved `chromium-bidi` dependencies. Install it separately before using the login/start-to-chat workflow. The controller's Bun HTTP server **is bundled** with the macOS app.
+> [!IMPORTANT]
+> **Independent, unofficial project.** This is browser automation of a user-controlled ChatGPT session, **not** the official OpenAI API, an OpenAI product, or a way around ChatGPT subscription limits. The user signs in directly in a dedicated visible Chrome window. The application does not export ChatGPT cookies, passwords, or bearer tokens.
 
-## Run from source
+![ChatGPT Controller — Getting started, connected](docs/screenshots/getting-started-connected.png)
+
+## Why it exists
+
+ChatGPT Controller lets developers, AI engineers, and automation builders experiment with their **own signed-in ChatGPT browser** from local software—without embedding a login form, collecting browser session tokens, or making an external web service the middleman.
+
+The macOS app manages a locally packaged HTTP controller. A separately installed Playwright CLI drives a dedicated Chrome profile, while a controller-generated secret authenticates local clients. You can connect a script, CLI, or another native app, such as the included [Relay sample](samples/relay/).
+
+**The important distinction:** clients talk to a browser-backed localhost bridge; they do **not** receive an official OpenAI API credential or direct access to the underlying ChatGPT network session.
+
+## Features
+
+| Capability              | What is implemented                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| Guided setup            | Open a dedicated Chrome profile, sign in yourself, start the controller, and inspect connection state |
+| Native desktop utility  | Tauri 2 + Rust + Svelte 5 interface, light-first with dark-mode support                               |
+| Private local API       | HTTP on `127.0.0.1:8791` with a separate local `X-Bridge-Key`                                         |
+| Conversation access     | Create conversations, continue known threads, and read messages in the browser                        |
+| Conversation management | List **loaded sidebar** conversations; open, rename, archive, or delete a conversation                |
+| API access page         | Copy endpoint, reveal/copy local key, or copy connection config as JSON                               |
+| API explorer            | Probe the authenticated conversation endpoint and explicitly submit a test prompt                     |
+| External client example | Relay, a separate Tauri/Svelte/Rust desktop chat client                                               |
+| Process ownership       | Stop only a controller process launched by this app; do not terminate an externally managed service   |
+| Built-in checks         | Report browser dependency, browser sign-in, and controller availability                               |
+
+The bridge executes **one browser operation at a time**. Conversation listing is limited to entries loaded in the browser's sidebar, not a complete account export.
+
+## Quick start
+
+### Requirements
+
+- **macOS on Apple Silicon (ARM64)** — the currently documented build target.
+- **Google Chrome**, installed locally.
+- **Playwright CLI** available as `playwright-cli`. It is **not bundled** with v0.1.0.
+- A ChatGPT account you can sign in to via the dedicated Chrome window.
+- Port `127.0.0.1:8791` available for the local controller.
+
+For a **source build**, also install [Bun](https://bun.sh/), the [Rust toolchain](https://rustup.rs/), and Apple developer command-line tools (run `xcode-select --install` if needed).
+
+Install Playwright CLI:
 
 ```bash
-cd ~/Code/mcp-workspace/projects/chatgpt-controller-desktop
+bun add -g @playwright/cli
+playwright-cli --help
+```
+
+The app looks for Playwright CLI on `PATH` and in several common Bun, mise, and Homebrew locations. It uses the locally installed Chrome browser.
+
+### 1. Get the application
+
+**Prebuilt app (when a GitHub Release is published):** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases), download the macOS ARM64 archive, extract it, and open `ChatGPT Controller.app`.
+
+**Current release state (October 2026):** the GitHub repository is private and there is no verified published GitHub Release. A local `releases/ChatGPT-Controller-0.1.0-macos-arm64.zip` exists in the maintainer workspace but the `releases/` directory is Git-ignored; cloning this repository does **not** download that ZIP. Use the source-build instructions below until a release asset is published.
+
+> The currently built app is **not signed or notarized**. macOS may require you to approve opening a locally built or downloaded app in **System Settings → Privacy & Security**. Only run binaries obtained from a source you trust.
+
+**Build and launch from source** (with repository access):
+
+```bash
+git clone git@github.com:AungMyoKyaw/chatgpt-controller-desktop.git
+cd chatgpt-controller-desktop
 make install
 make dev
 ```
 
-## Build release
+`make dev` builds the Bun sidecar and runs the native Tauri development application. For a distributable local `.app` bundle instead:
 
 ```bash
 bun run check
 cargo test --manifest-path src-tauri/Cargo.toml
 make build
-open src-tauri/target/release/bundle/macos/ChatGPT\ Controller.app
+open "src-tauri/target/release/bundle/macos/ChatGPT Controller.app"
 ```
 
-The app contains a bundled Apple Silicon Bun controller binary in its `Contents/Resources/bin/controller` directory. Its release bundle is not signed or notarized.
+`make build` packages the sidecar into the macOS app. It does **not** bundle Chrome or Playwright CLI.
 
-Run `make format` to format the root app's frontend, controller, and Rust code. `make build` creates the macOS app bundle.
+### 2. Connect your browser
 
-## Local API
+1. Open **ChatGPT Controller → Getting started**.
+2. Select **Open ChatGPT login**. The application launches a dedicated, visible Chrome profile.
+3. **Sign in directly in Chrome.** Do not enter your ChatGPT credentials into the controller.
+4. Select **Start controller** and refresh the status indicators.
+5. Open **API access** to copy the localhost URL and controller key.
+6. Open **API explorer** to list available conversations or deliberately send a test message.
 
-- Base URL: `http://127.0.0.1:8791`
-- Auth header: `X-Bridge-Key: <controller-generated-local-key>`
-- Key file: `~/.config/chatgpt-browser-controller/bridge.key`, restricted to the current macOS user (mode `0600`).
-- Browser session name: `chatgpt-controller`.
-- Profile: `~/.playwright-cli/chatgpt-controller-profile`.
-- Server log: `~/.config/chatgpt-browser-controller/controller.log`.
+The app uses an isolated Playwright session called `chatgpt-controller`. Your normal Chrome profile is not required.
 
-Example:
+### 3. Make your first API call
+
+After the browser is signed in and the controller is running:
 
 ```bash
-curl http://127.0.0.1:8791/v1/conversations \
+curl --fail-with-body \
+  'http://127.0.0.1:8791/v1/conversations?limit=5' \
   -H "X-Bridge-Key: $(cat ~/.config/chatgpt-browser-controller/bridge.key)"
 ```
 
-Create a conversation:
+Create a new conversation (this **submits a real prompt** to your signed-in ChatGPT session):
 
 ```bash
-curl http://127.0.0.1:8791/v1/chat \
+curl --fail-with-body \
+  http://127.0.0.1:8791/v1/chat \
   -H "X-Bridge-Key: $(cat ~/.config/chatgpt-browser-controller/bridge.key)" \
   -H "Content-Type: application/json" \
-  --data '{"prompt":"Hello ChatGPT"}'
+  --data '{"prompt":"Explain Kubernetes networking in three steps."}'
 ```
 
-For follow-ups include `"conversation_path":"/c/<uuid>"` with the identifier returned by the first call.
+A successful response includes a `reply` and a `conversation_path`. To continue that conversation, supply the exact returned path:
 
-Endpoint routes include `GET /health`, `GET /v1/conversations`, `GET /v1/conversations/{id}/messages`, `POST /v1/chat`, `PATCH /v1/conversations/{id}`, `POST /v1/conversations/{id}/archive`, and `DELETE /v1/conversations/{id}` with `{"confirm":true}`.
+```json
+{
+  "prompt": "Continue with an example.",
+  "conversation_path": "/c/<uuid>"
+}
+```
 
-For the complete API and behavior notes, see `controller/bridge-server.ts` and the included Relay example.
+Do not post the key or the exported API config in issues, screenshots, logs, or public repositories.
+
+## Screenshots
+
+Real application screens from the macOS build. Browser and controller status reflect the environment at capture time; they are not a simulated success guarantee.
+
+|                               Getting started                                |                                     API access                                      |
+| :--------------------------------------------------------------------------: | :---------------------------------------------------------------------------------: |
+| ![Getting started setup steps](docs/screenshots/getting-started-offline.png) |      ![API access with masked controller key](docs/screenshots/api-access.png)      |
+|                               **API explorer**                               |                                  **Relay sample**                                   |
+|              ![API explorer](docs/screenshots/api-explorer.png)              | ![Sample applications page showing Relay](docs/screenshots/sample-applications.png) |
+
+## Localhost API
+
+**Base URL:** `http://127.0.0.1:8791`
+
+**Authentication:** `X-Bridge-Key: <local-controller-key>` on every route except `GET /health`
+
+**Content type:** `application/json` for JSON request bodies
+
+| Method   | Endpoint                            | Purpose                                                   |
+| -------- | ----------------------------------- | --------------------------------------------------------- |
+| `GET`    | `/health`                           | Check whether the HTTP bridge is running; unauthenticated |
+| `GET`    | `/v1/conversations?limit=25`        | List loaded sidebar conversations (limit `1`–`100`)       |
+| `GET`    | `/v1/conversations/{uuid}/messages` | Read conversation messages                                |
+| `POST`   | `/v1/conversations/{uuid}/open`     | Open a known conversation                                 |
+| `POST`   | `/v1/chat`                          | Create a conversation or reply using `conversation_path`  |
+| `POST`   | `/v1/chat/completions`              | Limited non-streaming JSON compatibility                  |
+| `PATCH`  | `/v1/conversations/{uuid}`          | Rename via `{"title":"New title"}`                        |
+| `POST`   | `/v1/conversations/{uuid}/archive`  | Archive with a JSON body (`{}`)                           |
+| `DELETE` | `/v1/conversations/{uuid}`          | Delete only with `{"confirm":true}`                       |
+
+The compatibility endpoint is **not** a drop-in replacement for OpenAI's API: `stream:true` is unsupported, arbitrary model IDs are unsupported, and the browser controller has different response semantics and limits. If specifying a model, `chatgpt-web` is the only accepted value.
+
+For expected error codes, timeouts, behavior, and the typed client implementation, see [docs/API.md](docs/API.md) and [controller/controller-client.ts](controller/controller-client.ts).
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    User["Person signing in directly"] --> Chrome["Dedicated Chrome profile"]
+    UI["ChatGPT Controller.app<br/>Svelte 5 UI"] -->|Tauri commands| Rust["Rust backend<br/>state, process ownership, local key"]
+    Rust -->|starts/stops owned process| Bun["Packaged Bun HTTP bridge<br/>127.0.0.1:8791"]
+    Bun -->|Playwright CLI installed separately| Chrome
+    Chrome --> Site["chatgpt.com"]
+    Client["Local scripts / Relay sample"] -->|"HTTP + X-Bridge-Key"| Bun
+    Rust -->|authenticated explorer requests| Bun
 ```
-ChatGPT Controller.app (Svelte UI)
-   ↕ Tauri invokes
-Rust process manager, API explorer and 0600 key storage
-   ↕ starts bundled Bun HTTP service (loopback only)
-Bun conversation API on 127.0.0.1:8791
-   ↕ Playwright CLI (installed separately)
-Dedicated Chrome profile → signed-in chatgpt.com
-                            ↑
-Relay sample app → localhost API + independent local key
-```
 
-An already-running server at the configured port is detected rather than killed; the app can stop **only** a process it started.
+- **Svelte 5 + Tailwind CSS 4:** setup, connection status, API access, explorer, and sample app walkthrough.
+- **Rust + Tauri 2:** native commands, local secret creation, status checks, process management, and the packaged sidecar.
+- **Bun + TypeScript:** localhost HTTP route validation, request handling, and browser orchestration.
+- **Playwright CLI + Chrome:** interactions with the visible signed-in ChatGPT webpage. Playwright CLI is a **separate installation**, not embedded in the release.
+- **Relay:** an independent example client consuming the same localhost bridge.
 
-## Design methodology
+### Local files and boundaries
 
-The included `PRODUCT.md` and `DESIGN.md` document the **Impeccable Operate-mode** design: *Quiet Control Room*, light-first macOS styling, usable status-first actions, explicit error states and dark mode. The source is Svelte 5 with Tailwind CSS 4, custom tokens and Lucide icons.
+| Location                                              | Purpose                                              |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| `~/.config/chatgpt-browser-controller/bridge.key`     | Locally generated bridge key, file permission `0600` |
+| `~/.config/chatgpt-browser-controller/controller.log` | Local controller process log                         |
+| `~/.playwright-cli/chatgpt-controller-profile`        | Dedicated persistent Chrome profile                  |
+| `127.0.0.1:8791`                                      | Loopback-only HTTP listener                          |
 
-## License
+**Sign-in stays in Chrome.** The bridge does not export or replay ChatGPT cookies, bearer tokens, or the user's password. The separate controller key gives local clients access to sensitive chat operations, so treat the key as a secret, protect your macOS account, and do not expose the port through tunneling or reverse proxies. The **Export API config (JSON)** action copies a configuration containing the local key to the clipboard.
 
-This project and the included Relay sample are licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](LICENSE).
+If the port is already serving an API, the GUI can detect that server without claiming to own it. **Stop controller** only terminates a process started by the current app instance.
 
-## Limitations and safety
+## Relay example
 
-- These are *undocumented internal browser workflows*, not the official OpenAI API. ChatGPT could change its website.
-- Subscription usage limits and server rate limits still apply. No CAPTCHA bypass or quota-evasion logic is included.
-- The localhost bridge can read and mutate conversations for the signed-in user; never expose it over a public network or tunnel without a separate authentication and authorization design.
-- The sidebar conversation list is not a complete account export; it includes only currently loaded sidebar chats.
-- UI-driven messages return after the browser response completes; this is not true token-by-token streaming.
-- A timeout could happen after a chat was already submitted; always inspect Chrome before resending.
-- The controller does not package a Chromium/Chrome browser and depends on the user's installed Chrome.
-- A service already running on port 8791 might belong to another session. The app reports this as an external service rather than silently changing it.
+[`samples/relay/`](samples/relay/) contains a separate macOS application demonstrating a native client for this API. Its Rust backend reads the same local key file and calls the loopback service without exposing the bridge key to its Svelte frontend.
 
-## Tests
-
-- `bun run check` and `bun run build`
-- `cargo test --manifest-path src-tauri/Cargo.toml`
-- Compiled Bun sidecar independently answered `GET /health` with HTTP 200 on a test port.
-- Actual native macOS window and Svelte browser-preview screens visually inspected.
-- Impeccable detector found no specified anti-patterns.
-- Live ChatGPT conversation creation and follow-up were previously verified through the upstream controller; this new dedicated browser profile needs interactive sign-in for user-specific E2E tests.
-
-## Included example
-
-`samples/relay` contains the full existing Tauri/Svelte/Rust Relay chat client project. Run:
+To run Relay after starting the controller:
 
 ```bash
 cd samples/relay
@@ -130,4 +218,91 @@ bun install
 bun run tauri dev
 ```
 
-Relay's Rust backend reads the same local key file and calls the controller on port 8791. It does not share or copy browser session credentials.
+See [Relay integration notes](samples/relay/CONTROLLER-INTEGRATION.md). Relay is **not** required to run ChatGPT Controller.
+
+## Development
+
+### Project structure
+
+```text
+chatgpt-controller-desktop/
+├── controller/              # Bun HTTP server, browser and conversation automation, client, tests
+├── src/                     # Svelte UI and frontend utilities
+├── src-tauri/               # Rust commands, Tauri configuration, native application
+├── docs/
+│   ├── API.md               # Detailed HTTP API reference
+│   └── screenshots/         # Real application screenshots
+├── samples/relay/           # Independent native API client
+├── PRODUCT.md               # Product scope and behavior
+├── DESIGN.md                # Design system / Impeccable direction
+├── Makefile
+└── README.md
+```
+
+### Commands
+
+```bash
+make install                                    # Install dependencies from bun.lock
+make dev                                        # Build sidecar and run the Tauri dev app
+bun test controller                             # Bun controller and typed client tests
+bun run check                                   # Svelte + TypeScript checks
+cargo test --manifest-path src-tauri/Cargo.toml # Rust tests
+bun run build                                   # Frontend build only
+make build                                      # Build native macOS .app with bundled sidecar
+make format                                     # Format Svelte/TypeScript and Rust sources
+```
+
+The Tauri application is configured with a local Vite development server. The native build produces `src-tauri/target/release/bundle/macos/ChatGPT Controller.app`.
+
+For the rationale behind the light-first **Quiet Control Room** design, see [DESIGN.md](DESIGN.md). For product goals, see [PRODUCT.md](PRODUCT.md).
+
+## Troubleshooting
+
+| Symptom                                   | What to check                                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Playwright CLI missing**                | Install `@playwright/cli` and ensure `playwright-cli --help` works in your shell; restart the desktop app afterward     |
+| **Dedicated browser does not open**       | Verify Chrome is installed and that Playwright CLI can start Chrome with a headed persistent profile                    |
+| **Not authenticated / HTTP 401**          | Sign in to ChatGPT in the **dedicated** Chrome profile; check that the request includes the correct controller key      |
+| **Controller offline**                    | Start it in Getting started; check whether port `8791` is already in use and review the local controller log            |
+| **HTTP 429**                              | Another browser operation is executing; allow it to finish before retrying                                              |
+| **Conversation not found or unavailable** | The identifier must be a valid conversation UUID and the thread must be accessible in the signed-in browser             |
+| **HTTP 422**                              | Remove unsupported `stream:true` or model selection; use non-streaming requests and `chatgpt-web` if providing a model  |
+| **HTTP 502/503/504 or timeout**           | Inspect the Chrome window; the page may have changed or a submitted message may still finish after the bridge times out |
+| **Downloaded app will not open**          | The release is not signed/notarized; use macOS's trusted-app opening workflow or build locally from source              |
+
+## Limitations
+
+- **Not an official API or model gateway.** Site changes may break browser selectors and therefore bridge functionality.
+- **No limit bypass.** ChatGPT usage limits, availability, browser access and applicable account restrictions still apply.
+- **One browser action at a time.** The bridge returns a busy response instead of running simultaneous requests.
+- **No true token streaming.** The compatibility route returns a completed response, not token-by-token events.
+- **Incomplete conversation discovery.** The list is limited to currently loaded sidebar threads.
+- **Browser-dependent reliability.** A response timeout does **not** guarantee that ChatGPT did not already receive the prompt. Inspect Chrome before sending a duplicate.
+- **Platform and distribution scope.** Only macOS Apple Silicon is documented; Chrome and Playwright CLI remain external prerequisites; the current app bundle is unsigned.
+- **Local access is still sensitive.** Anyone able to read the key and reach the local port may perform available chat operations, including destructive ones.
+
+## Roadmap (ideas, not commitments)
+
+Possible improvements include signed/notarized macOS releases, publishing release assets and install automation, stronger end-to-end browser regression tests, and broader supported client workflows. These are **proposals**, not promised release dates or claims that the features exist today.
+
+## Contributing and support
+
+The project is presently in an early v0.1.0 stage. When repository access permits, bug reports and scoped pull requests are welcome via [GitHub Issues](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/issues). Include a reproducible description, platform details, and relevant **redacted** logs; never attach browser profiles, the bridge key, or personal conversations.
+
+Before submitting a code change, run the applicable checks in [Development](#development). Use GitHub Issues for discussion unless GitHub Discussions is enabled.
+
+Created by **[Aung Myo Kyaw](https://github.com/AungMyoKyaw)**.
+
+## License
+
+Copyright © Aung Myo Kyaw and contributors.
+
+Licensed under the **GNU Affero General Public License, version 3.0 or later (AGPL-3.0-or-later)**. See [LICENSE](LICENSE). The included Relay sample uses the same license.
+
+---
+
+<div align="center">
+
+**Local-first. Browser-backed. Built for developers.**
+
+</div>

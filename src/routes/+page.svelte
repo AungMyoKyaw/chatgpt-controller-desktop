@@ -71,6 +71,7 @@
     ["GET", "/health", "Health and availability"],
     ["GET", "/v1/conversations", "List loaded sidebar chats"],
     ["GET", "/v1/conversations/{id}/messages", "Read visible messages"],
+    ["GET", "/v1/conversations/{id}/status", "Check active generation status"],
     ["POST", "/v1/chat", "Create or continue a chat"],
     ["PATCH", "/v1/conversations/{id}", "Rename"],
     ["POST", "/v1/conversations/{id}/archive", "Archive"],

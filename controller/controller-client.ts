@@ -4,6 +4,14 @@ export type ConversationMessage = {
   role: "user" | "assistant";
   content: string;
 };
+export type ConversationStatus = {
+  id: string;
+  conversationPath: string;
+  status: "in_progress" | "completed" | "unknown";
+  in_progress: boolean | null;
+  source: "browser-ui" | "local-operation";
+  reason?: string;
+};
 export type ConversationPage = {
   conversations: ConversationSummary[];
   visibleCount: number;
@@ -64,6 +72,9 @@ export class ChatGPTControllerClient {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       throw Error("Limit must be 1-100");
     return this.call<ConversationPage>("/v1/conversations?limit=" + limit);
+  }
+  async status(id: string): Promise<ConversationStatus> {
+    return this.call("/v1/conversations/" + this.encodeId(id) + "/status");
   }
   async read(
     id: string,

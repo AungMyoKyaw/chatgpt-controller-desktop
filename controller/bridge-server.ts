@@ -4,6 +4,7 @@
  * This does not expose or replay browser auth headers, cookies or session tokens.
  */
 import { timingSafeEqual } from "node:crypto";
+import { getConversationStatus } from "./conversation-status.ts";
 import {
   BrowserBridgeError,
   sendChat,
@@ -26,6 +27,7 @@ type Inbound = {
 export type HandlerDeps = {
   send?: typeof sendChat;
   control?: typeof controlConversation;
+  status?: typeof getConversationStatus;
   key: string;
   session?: string;
 };
@@ -84,11 +86,12 @@ async function getBody(req: Request): Promise<Inbound> {
 const uuid =
   "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})";
 const conversationRoute = new RegExp(
-  "^/v1/conversations/" + uuid + "(?:/(messages|open|archive))?$",
+  "^/v1/conversations/" + uuid + "(?:/(messages|open|archive|status))?$",
 );
 type Route =
   | { type: "chat"; standard: boolean }
   | { type: "list"; limit: number }
+  | { type: "status"; id: string }
   | { type: "control"; action: ControlRequest["action"]; id: string }
   | null;
 function matchRoute(
@@ -110,6 +113,8 @@ function matchRoute(
   const m = conversationRoute.exec(path);
   if (!m) return null;
   const [, id, suffix] = m;
+  if (method === "GET" && suffix === "status")
+    return { type: "status", id: validateId(id) };
   if (method === "GET" && (suffix === undefined || suffix === "messages"))
     return { type: "control", action: "read", id };
   if (method === "POST" && suffix === "open")
@@ -125,6 +130,7 @@ function matchRoute(
 
 export function createHandler(deps: HandlerDeps) {
   let busy = false;
+  let activeChatId: string | null = null;
   return async (req: Request): Promise<Response> => {
     const u = new URL(req.url);
     if (!["127.0.0.1", "localhost"].includes(u.hostname))
@@ -143,6 +149,19 @@ export function createHandler(deps: HandlerDeps) {
       );
     }
     if (!route) return json({ error: "Not found" }, 404);
+    // Status polling must remain responsive while a chat request is running.
+    // A different chat cannot be inspected safely during that browser operation.
+    if (busy && route.type === "status") {
+      const active = activeChatId === route.id;
+      return json({
+        id: route.id,
+        conversationPath: "/c/" + route.id,
+        status: active ? "in_progress" : "unknown",
+        in_progress: active ? true : null,
+        source: "local-operation",
+        ...(!active ? { reason: "browser_operation_busy" } : {}),
+      });
+    }
     if (busy)
       return json({ error: "Another browser operation is in progress" }, 429);
     busy = true;
@@ -155,6 +174,25 @@ export function createHandler(deps: HandlerDeps) {
           return json(
             { error: e instanceof Error ? e.message : "Invalid request" },
             e instanceof BrowserBridgeError ? e.status : 400,
+          );
+        }
+      }
+      if (route.type === "status") {
+        try {
+          return json(
+            await (deps.status || getConversationStatus)(route.id, {
+              session: deps.session,
+            }),
+          );
+        } catch (e) {
+          return json(
+            {
+              error:
+                e instanceof BrowserBridgeError
+                  ? e.message
+                  : "Status inspection failed",
+            },
+            e instanceof BrowserBridgeError ? e.status : 502,
           );
         }
       }
@@ -197,6 +235,10 @@ export function createHandler(deps: HandlerDeps) {
       }
       try {
         if (route.type === "chat") {
+          activeChatId =
+            (input as BrowserChatRequest).conversationPath
+              ?.slice(3)
+              .toLowerCase() || null;
           const result = await (deps.send || sendChat)(
             input as BrowserChatRequest,
             { session: deps.session },
@@ -240,6 +282,7 @@ export function createHandler(deps: HandlerDeps) {
         );
       }
     } finally {
+      activeChatId = null;
       busy = false;
     }
   };
