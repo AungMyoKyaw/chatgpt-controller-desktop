@@ -7,10 +7,24 @@ export type ConversationMessage = {
 export type ConversationStatus = {
   id: string;
   conversationPath: string;
-  status: "in_progress" | "completed" | "unknown";
+  status: "in_progress" | "completed" | "failed" | "unavailable";
   in_progress: boolean | null;
-  source: "browser-ui" | "local-operation";
+  source: "browser-ui" | "upstream-stream-status" | "local-operation";
   reason?: string;
+  upstream_status?: string;
+};
+export type ConversationStatuses = {
+  statuses: ConversationStatus[];
+  count: number;
+  scope: string;
+  visibleCount?: number;
+  total?: number;
+  offset?: number;
+  hasMore?: boolean;
+  summary: Record<
+    "in_progress" | "completed" | "failed" | "unavailable",
+    number
+  >;
 };
 export type ConversationPage = {
   conversations: ConversationSummary[];
@@ -51,7 +65,9 @@ export class ChatGPTControllerClient {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       redirect: "error",
-      signal: AbortSignal.timeout(130000),
+      signal: AbortSignal.timeout(
+        path.startsWith("/v1/conversations/statuses") ? 300000 : 130000,
+      ),
     });
     let value: unknown;
     try {
@@ -75,6 +91,26 @@ export class ChatGPTControllerClient {
   }
   async status(id: string): Promise<ConversationStatus> {
     return this.call("/v1/conversations/" + this.encodeId(id) + "/status");
+  }
+  async statuses(
+    ids?: string[],
+    limit = 20,
+    offset = 0,
+  ): Promise<ConversationStatuses> {
+    if (ids) {
+      if (ids.length < 1 || ids.length > 50)
+        throw Error("Status batch requires 1-50 conversation IDs");
+      return this.call("/v1/conversations/statuses", "POST", {
+        ids: ids.map((id) => this.encodeId(id)),
+      });
+    }
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+      throw Error("Limit must be 1-50");
+    if (!Number.isInteger(offset) || offset < 0 || offset > 1000000)
+      throw Error("Offset must be 0-1000000");
+    return this.call(
+      "/v1/conversations/statuses?limit=" + limit + "&offset=" + offset,
+    );
   }
   async read(
     id: string,

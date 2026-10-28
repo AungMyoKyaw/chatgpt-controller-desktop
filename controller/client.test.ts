@@ -27,6 +27,8 @@ test("typed client targets exact conversation routes", async () => {
   await client.list(3);
   await client.read(sampleId);
   await client.status(sampleId);
+  await client.statuses([sampleId]);
+  await client.statuses(undefined, 5);
   await client.send("Hello", sampleId);
   await client.rename(sampleId, "My scratch chat");
   expect(seen.map((x) => x.method)).toEqual([
@@ -34,11 +36,15 @@ test("typed client targets exact conversation routes", async () => {
     "GET",
     "GET",
     "POST",
+    "GET",
+    "POST",
     "PATCH",
   ]);
   expect(seen[1].path).toBe("/v1/conversations/" + sampleId + "/messages");
   expect(seen[2].path).toBe("/v1/conversations/" + sampleId + "/status");
-  expect(seen[3].body).toContain("/c/" + sampleId);
+  expect(seen[3].path).toBe("/v1/conversations/statuses");
+  expect(seen[4].path).toBe("/v1/conversations/statuses");
+  expect(seen[5].body).toContain("/c/" + sampleId);
 });
 test("typed client restricts URLs and delete confirmation", async () => {
   expect(

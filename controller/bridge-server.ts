@@ -4,7 +4,12 @@
  * This does not expose or replay browser auth headers, cookies or session tokens.
  */
 import { timingSafeEqual } from "node:crypto";
-import { getConversationStatus } from "./conversation-status.ts";
+import {
+  getConversationStatus,
+  discoverVisibleConversations,
+  discoverAccountConversations,
+  type ConversationStatus,
+} from "./conversation-status.ts";
 import {
   BrowserBridgeError,
   sendChat,
@@ -23,11 +28,14 @@ type Inbound = {
   stream?: boolean;
   title?: string;
   confirm?: boolean;
+  ids?: string[];
 };
 export type HandlerDeps = {
   send?: typeof sendChat;
   control?: typeof controlConversation;
   status?: typeof getConversationStatus;
+  discover?: typeof discoverAccountConversations;
+  discoverVisible?: typeof discoverVisibleConversations;
   key: string;
   session?: string;
 };
@@ -92,6 +100,7 @@ type Route =
   | { type: "chat"; standard: boolean }
   | { type: "list"; limit: number }
   | { type: "status"; id: string }
+  | { type: "statuses"; limit: number; offset: number; explicit: boolean }
   | { type: "control"; action: ControlRequest["action"]; id: string }
   | null;
 function matchRoute(
@@ -109,6 +118,19 @@ function matchRoute(
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       throw new BrowserBridgeError("Limit must be 1-100", 400);
     return { type: "list", limit };
+  }
+  if (path === "/v1/conversations/statuses") {
+    if (method === "POST")
+      return { type: "statuses", limit: 50, offset: 0, explicit: true };
+    if (method === "GET") {
+      const limit = Number(params.get("limit") || "20");
+      const offset = Number(params.get("offset") || "0");
+      if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+        throw new BrowserBridgeError("Limit must be 1-50", 400);
+      if (!Number.isInteger(offset) || offset < 0 || offset > 1000000)
+        throw new BrowserBridgeError("Offset must be 0-1000000", 400);
+      return { type: "statuses", limit, offset, explicit: false };
+    }
   }
   const m = conversationRoute.exec(path);
   if (!m) return null;
@@ -156,7 +178,7 @@ export function createHandler(deps: HandlerDeps) {
       return json({
         id: route.id,
         conversationPath: "/c/" + route.id,
-        status: active ? "in_progress" : "unknown",
+        status: active ? "in_progress" : "unavailable",
         in_progress: active ? true : null,
         source: "local-operation",
         ...(!active ? { reason: "browser_operation_busy" } : {}),
@@ -174,6 +196,95 @@ export function createHandler(deps: HandlerDeps) {
           return json(
             { error: e instanceof Error ? e.message : "Invalid request" },
             e instanceof BrowserBridgeError ? e.status : 400,
+          );
+        }
+      }
+      if (route.type === "statuses") {
+        try {
+          let ids: string[];
+          let scope = "explicit-ids";
+          let visibleCount: number | undefined;
+          let total: number | undefined;
+          let hasMore: boolean | undefined;
+          if (route.explicit) {
+            if (
+              !Array.isArray(data.ids) ||
+              data.ids.length < 1 ||
+              data.ids.length > 50
+            )
+              throw new BrowserBridgeError(
+                "ids must contain 1-50 conversation IDs",
+                400,
+              );
+            ids = [...new Set(data.ids.map((id) => validateId(id)))];
+          } else {
+            try {
+              const account = await (
+                deps.discover || discoverAccountConversations
+              )(route.limit, route.offset, { session: deps.session });
+              ids = account.conversations.map((entry) => validateId(entry.id));
+              scope = account.scope;
+              total = account.total;
+              hasMore = account.hasMore;
+            } catch (error) {
+              if (route.offset > 0) throw error;
+              const visible = await (
+                deps.discoverVisible || discoverVisibleConversations
+              )(route.limit, { session: deps.session });
+              ids = visible.conversations.map((entry) => validateId(entry.id));
+              scope = visible.scope;
+              visibleCount = visible.visibleCount;
+            }
+          }
+          const statuses: ConversationStatus[] = [];
+          for (const id of ids) {
+            try {
+              statuses.push(
+                await (deps.status || getConversationStatus)(id, {
+                  session: deps.session,
+                }),
+              );
+            } catch {
+              statuses.push({
+                id,
+                conversationPath: "/c/" + id,
+                status: "unavailable",
+                in_progress: null,
+                source: "upstream-stream-status",
+                reason: "inspection_failed",
+              });
+            }
+          }
+          return json({
+            statuses,
+            count: statuses.length,
+            scope,
+            ...(visibleCount === undefined ? {} : { visibleCount }),
+            ...(total === undefined
+              ? {}
+              : { total, offset: route.offset, hasMore }),
+            summary: {
+              in_progress: statuses.filter(
+                (item) => item.status === "in_progress",
+              ).length,
+              completed: statuses.filter((item) => item.status === "completed")
+                .length,
+              failed: statuses.filter((item) => item.status === "failed")
+                .length,
+              unavailable: statuses.filter(
+                (item) => item.status === "unavailable",
+              ).length,
+            },
+          });
+        } catch (e) {
+          return json(
+            {
+              error:
+                e instanceof Error
+                  ? e.message
+                  : "Bulk status inspection failed",
+            },
+            e instanceof BrowserBridgeError ? e.status : 502,
           );
         }
       }
@@ -317,6 +428,7 @@ if (import.meta.main) {
   Bun.serve({
     hostname: "127.0.0.1",
     port,
+    idleTimeout: 240,
     fetch: createHandler({
       key,
       session: process.env.CHATGPT_BROWSER_SESSION || "chatgpt-research",
