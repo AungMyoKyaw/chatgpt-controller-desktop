@@ -1,19 +1,28 @@
 #!/usr/bin/env bun
 /** Controllable browser UI for locally signed-in ChatGPT. No session-token extraction. */
-import {cliRunner,BrowserBridgeError,type Runner} from "./browser-chat.ts";
+import { cliRunner, BrowserBridgeError, type Runner } from "./browser-chat.ts";
 
-export type Action = "list"|"open"|"read"|"rename"|"archive"|"delete";
-export type ControlRequest = {action:Action; id?:string; title?:string; confirm?:boolean; limit?:number};
-export type ControlResult = Record<string,unknown>;
-const UUID=/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-export function validateId(id:string):string {
-  if (!UUID.test(id)) throw new BrowserBridgeError("Invalid conversation ID",400);
+export type Action = "list" | "open" | "read" | "rename" | "archive" | "delete";
+export type ControlRequest = {
+  action: Action;
+  id?: string;
+  title?: string;
+  confirm?: boolean;
+  limit?: number;
+};
+export type ControlResult = Record<string, unknown>;
+const UUID =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export function validateId(id: string): string {
+  if (!UUID.test(id))
+    throw new BrowserBridgeError("Invalid conversation ID", 400);
   return id.toLowerCase();
 }
-export function buildControlScript(request:ControlRequest):string {
-  const id=request.id?validateId(request.id):null;
-  const limit=Math.min(100,Math.max(1,request.limit??25));
-  const title=request.title===undefined?null:JSON.stringify(request.title);
+export function buildControlScript(request: ControlRequest): string {
+  const id = request.id ? validateId(request.id) : null;
+  const limit = Math.min(100, Math.max(1, request.limit ?? 25));
+  const title =
+    request.title === undefined ? null : JSON.stringify(request.title);
   return `async (page) => {
     const action=${JSON.stringify(request.action)};
     const id=${JSON.stringify(id)};
@@ -55,7 +64,7 @@ export function buildControlScript(request:ControlRequest):string {
     if(action==="rename"){
       await page.getByRole("menuitem",{name:"Rename",exact:true}).click();
       const dialog=page.getByRole("dialog");
-      await dialog.getByRole("textbox").fill(${title||'""'});
+      await dialog.getByRole("textbox").fill(${title || '""'});
       await dialog.getByRole("button",{name:"Save",exact:true}).click();
       return {id,renamed:true};
     }
@@ -72,45 +81,89 @@ export function buildControlScript(request:ControlRequest):string {
   }`;
 }
 export async function controlConversation(
-  request:ControlRequest,
-  options:{session?:string;runner?:Runner}={}
-):Promise<ControlResult>{
-  const allowed:Action[]=["list","open","read","rename","archive","delete"];
-  if(!allowed.includes(request.action)) throw new BrowserBridgeError("Unknown action",400);
-  if(request.action!=="list" && !request.id)throw new BrowserBridgeError("Conversation ID required",400);
-  if(request.id)validateId(request.id);
-  if(request.action==="delete"&&request.confirm!==true)
-    throw new BrowserBridgeError("Deletion requires explicit confirmation",400);
-  if(request.action==="rename" && (!request.title?.trim()||request.title.length>120))
-    throw new BrowserBridgeError("Title must be 1-120 characters",400);
-  if(request.limit!==undefined&&(!Number.isInteger(request.limit)||request.limit<1||request.limit>100))
-    throw new BrowserBridgeError("Limit must be 1-100",400);
-  const session=options.session||"chatgpt-research";
-  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$/.test(session))
-    throw new BrowserBridgeError("Invalid browser session",400);
-  let result:Record<string,unknown>;
-  try{
-    result=JSON.parse(await (options.runner||cliRunner)(buildControlScript(request),session));
-  }catch(e){
-    if(e instanceof BrowserBridgeError)throw e;
+  request: ControlRequest,
+  options: { session?: string; runner?: Runner } = {},
+): Promise<ControlResult> {
+  const allowed: Action[] = [
+    "list",
+    "open",
+    "read",
+    "rename",
+    "archive",
+    "delete",
+  ];
+  if (!allowed.includes(request.action))
+    throw new BrowserBridgeError("Unknown action", 400);
+  if (request.action !== "list" && !request.id)
+    throw new BrowserBridgeError("Conversation ID required", 400);
+  if (request.id) validateId(request.id);
+  if (request.action === "delete" && request.confirm !== true)
+    throw new BrowserBridgeError(
+      "Deletion requires explicit confirmation",
+      400,
+    );
+  if (
+    request.action === "rename" &&
+    (!request.title?.trim() || request.title.length > 120)
+  )
+    throw new BrowserBridgeError("Title must be 1-120 characters", 400);
+  if (
+    request.limit !== undefined &&
+    (!Number.isInteger(request.limit) ||
+      request.limit < 1 ||
+      request.limit > 100)
+  )
+    throw new BrowserBridgeError("Limit must be 1-100", 400);
+  const session = options.session || "chatgpt-research";
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$/.test(session))
+    throw new BrowserBridgeError("Invalid browser session", 400);
+  let result: Record<string, unknown>;
+  try {
+    result = JSON.parse(
+      await (options.runner || cliRunner)(buildControlScript(request), session),
+    );
+  } catch (e) {
+    if (e instanceof BrowserBridgeError) throw e;
     throw new BrowserBridgeError("Invalid browser controller result");
   }
-  if(!result||typeof result!=="object")throw new BrowserBridgeError("Invalid browser controller result");
-  if(result.error==="LOGIN_REQUIRED")throw new BrowserBridgeError("Sign in to the browser session",401);
-  if(result.error==="NOT_FOUND")throw new BrowserBridgeError("Conversation not found",404);
-  if(result.error==="UNAVAILABLE")throw new BrowserBridgeError("Conversation unavailable; server rate limits or loading failures may be in effect",503);
-  if(typeof result.error==="string")throw new BrowserBridgeError("Browser action failed");
+  if (!result || typeof result !== "object")
+    throw new BrowserBridgeError("Invalid browser controller result");
+  if (result.error === "LOGIN_REQUIRED")
+    throw new BrowserBridgeError("Sign in to the browser session", 401);
+  if (result.error === "NOT_FOUND")
+    throw new BrowserBridgeError("Conversation not found", 404);
+  if (result.error === "UNAVAILABLE")
+    throw new BrowserBridgeError(
+      "Conversation unavailable; server rate limits or loading failures may be in effect",
+      503,
+    );
+  if (typeof result.error === "string")
+    throw new BrowserBridgeError("Browser action failed");
   return result;
 }
-if(import.meta.main){
-  const [action,arg,...more]=process.argv.slice(2);
-  const id=arg;
-  let request:ControlRequest;
-  if(action==="list")request={action:"list",limit:Number(arg||25)};
-  else if(action==="read"||action==="open"||action==="archive")request={action,id};
-  else if(action==="rename")request={action:"rename",id,title:more.join(" ")};
-  else if(action==="delete")request={action:"delete",id,confirm:more[0]==="--confirm"};
-  else {console.error("Usage: list [limit] | open ID | read ID | rename ID TITLE | archive ID | delete ID --confirm");process.exit(2);}
-  try{console.log(JSON.stringify(await controlConversation(request),null,2));}
-  catch(e){console.error(e instanceof Error?e.message:"Conversation controller error");process.exitCode=1;}
+if (import.meta.main) {
+  const [action, arg, ...more] = process.argv.slice(2);
+  const id = arg;
+  let request: ControlRequest;
+  if (action === "list") request = { action: "list", limit: Number(arg || 25) };
+  else if (action === "read" || action === "open" || action === "archive")
+    request = { action, id };
+  else if (action === "rename")
+    request = { action: "rename", id, title: more.join(" ") };
+  else if (action === "delete")
+    request = { action: "delete", id, confirm: more[0] === "--confirm" };
+  else {
+    console.error(
+      "Usage: list [limit] | open ID | read ID | rename ID TITLE | archive ID | delete ID --confirm",
+    );
+    process.exit(2);
+  }
+  try {
+    console.log(JSON.stringify(await controlConversation(request), null, 2));
+  } catch (e) {
+    console.error(
+      e instanceof Error ? e.message : "Conversation controller error",
+    );
+    process.exitCode = 1;
+  }
 }

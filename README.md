@@ -28,9 +28,8 @@ This is a new standalone controller product. **Relay** is included separately in
 
 ```bash
 cd ~/Code/mcp-workspace/projects/chatgpt-controller-desktop
-bun install
-bun run sidecar
-bun run tauri dev
+make install
+make dev
 ```
 
 ## Build release
@@ -38,11 +37,13 @@ bun run tauri dev
 ```bash
 bun run check
 cargo test --manifest-path src-tauri/Cargo.toml
-bun run tauri build --bundles app
+make build
 open src-tauri/target/release/bundle/macos/ChatGPT\ Controller.app
 ```
 
 The app contains a bundled Apple Silicon Bun controller binary in its `Contents/Resources/bin/controller` directory. Its release bundle is not signed or notarized.
+
+Run `make format` to format the root app's frontend, controller, and Rust code. `make build` creates the macOS app bundle.
 
 ## Local API
 
