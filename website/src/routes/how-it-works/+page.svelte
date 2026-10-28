@@ -14,7 +14,7 @@
     <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-around;padding:35px 24px;color:#cce2e1;text-align:center">
       <div><div style="font-size:1.2rem;font-weight:750">Your script / app</div><div style="font-size:.8rem;color:#95b4bc;margin-top:7px">Authenticated client</div></div>
       <span style="font-size:1.6rem;color:#73d8ba" aria-hidden="true">→</span>
-      <div><div style="font-size:1.2rem;font-weight:750">localhost:8791</div><div style="font-size:.8rem;color:#95b4bc;margin-top:7px">Bun HTTP sidecar</div></div>
+      <div><div style="font-size:1.2rem;font-weight:750">localhost:8791</div><div style="font-size:.8rem;color:#95b4bc;margin-top:7px">Native Rust HTTP sidecar</div></div>
       <span style="font-size:1.6rem;color:#73d8ba" aria-hidden="true">→</span>
       <div><div style="font-size:1.2rem;font-weight:750">Dedicated Chrome</div><div style="font-size:.8rem;color:#95b4bc;margin-top:7px">Your signed-in browser</div></div>
     </div>

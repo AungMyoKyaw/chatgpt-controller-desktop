@@ -8,7 +8,7 @@
 
 A native macOS control center that exposes a private, authenticated HTTP interface to a ChatGPT session you open and sign in to yourself.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-315BD4)](https://github.com/AungMyoKyaw/chatgpt-controller-desktop)
+[![Version](https://img.shields.io/badge/version-0.2.0-315BD4)](https://github.com/AungMyoKyaw/chatgpt-controller-desktop)
 [![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-1B2B31)](#requirements)
 [![Tauri](https://img.shields.io/badge/Tauri-2-315BD4)](https://tauri.app/)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00)](https://svelte.dev/)
@@ -55,7 +55,7 @@ The bridge serializes UI-changing browser operations. Read-only account discover
 
 - **macOS on Apple Silicon (ARM64)** — the currently documented build target.
 - **Google Chrome**, installed locally.
-- **Playwright CLI** available as `playwright-cli`. It is **not bundled** with v0.1.0.
+- **Playwright CLI** available as `playwright-cli`. It is **not bundled** with v0.2.0.
 - A ChatGPT account you can sign in to via the dedicated Chrome window.
 - Port `127.0.0.1:8791` available for the local controller.
 
@@ -72,13 +72,13 @@ The app looks for Playwright CLI on `PATH` and in several common Bun, mise, and 
 
 ### 1. Get the application
 
-**Install the public v0.1.0 release with Homebrew:**
+**Install v0.2.0 with Homebrew:**
 
 ```bash
 brew install --cask aungmyokyaw/tap/chatgpt-controller
 ```
 
-**Direct download:** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.1.0), download `ChatGPT-Controller-v0.1.0-macos-arm64.zip`, verify the digest in `SHA256SUMS`, extract the archive, and move `ChatGPT Controller.app` into Applications.
+**Direct download:** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.2.0), download `ChatGPT-Controller-v0.2.0-macos-arm64.zip`, verify the digest in `SHA256SUMS`, extract the archive, and move `ChatGPT Controller.app` into Applications.
 
 > Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. The Homebrew cask now attempts to remove quarantine from the installed app bundle recursively as a nonfatal postflight step; direct downloads or blocked launches may still need approval in **System Settings → Privacy & Security**. Chrome and Playwright CLI are separate prerequisites for v0.1.0.
 
@@ -91,7 +91,7 @@ make install
 make dev
 ```
 
-`make dev` builds the Bun sidecar and runs the native Tauri development application. For a distributable local `.app` bundle instead:
+`make dev` builds the lightweight native Rust controller sidecar and runs the Tauri application. Bun is used to build frontend and Playwright script assets but its runtime is not shipped in the app. For a distributable local `.app` bundle instead:
 
 ```bash
 bun run check
@@ -187,16 +187,17 @@ For expected error codes, timeouts, behavior, and the typed client implementatio
 flowchart TD
     User["Person signing in directly"] --> Chrome["Dedicated Chrome profile"]
     UI["ChatGPT Controller.app<br/>Svelte 5 UI"] -->|Tauri commands| Rust["Rust backend<br/>state, process ownership, local key"]
-    Rust -->|starts/stops owned process| Bun["Packaged Bun HTTP bridge<br/>127.0.0.1:8791"]
-    Bun -->|Playwright CLI installed separately| Chrome
+    Rust -->|starts/stops owned process| Native["Native Rust HTTP controller<br/>127.0.0.1:8791"]
+    Native -->|Playwright CLI installed separately| Chrome
     Chrome --> Site["chatgpt.com"]
-    Client["Local scripts / Relay sample"] -->|"HTTP + X-Bridge-Key"| Bun
-    Rust -->|authenticated explorer requests| Bun
+    Client["Local scripts / Relay sample"] -->|"HTTP + X-Bridge-Key"| Native
+    Rust -->|authenticated explorer requests| Native
 ```
 
 - **Svelte 5 + Tailwind CSS 4:** setup, connection status, API access, explorer, and sample app walkthrough.
-- **Rust + Tauri 2:** native commands, local secret creation, status checks, process management, and the packaged sidecar.
-- **Bun + TypeScript:** localhost HTTP route validation, request handling, and browser orchestration.
+- **Rust + Tauri 2:** native commands, local secret creation, status checks, process management, and the packaged Rust controller sidecar.
+- **Native Rust HTTP sidecar (Axum + Tokio):** localhost request validation, routing, authentication, status caching, and launching Playwright CLI. The release ships an ARM64 Rust executable instead of an ~86 MB Bun binary.
+- **Bun + TypeScript (build and tests only):** Svelte build tooling, existing browser-script source, template generation, and regression tests. Bun is not bundled in the distributed app.
 - **Playwright CLI + Chrome:** interactions with the visible signed-in ChatGPT webpage. Playwright CLI is a **separate installation**, not embedded in the release.
 - **Relay:** an independent example client consuming the same localhost bridge.
 
@@ -233,7 +234,8 @@ See [Relay integration notes](samples/relay/CONTROLLER-INTEGRATION.md). Relay is
 
 ```text
 chatgpt-controller-desktop/
-├── controller/              # Bun HTTP server, browser and conversation automation, client, tests
+├── native-controller/       # Rust API server, Playwright runner and generated browser scripts
+├── controller/              # Original TypeScript reference, Playwright scripts and regression tests
 ├── src/                     # Svelte UI and frontend utilities
 ├── src-tauri/               # Rust commands, Tauri configuration, native application
 ├── docs/
@@ -301,7 +303,7 @@ Possible improvements include signed/notarized macOS releases, publishing releas
 
 ## Contributing and support
 
-The project is presently in an early v0.1.0 stage. When repository access permits, bug reports and scoped pull requests are welcome via [GitHub Issues](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/issues). Include a reproducible description, platform details, and relevant **redacted** logs; never attach browser profiles, the bridge key, or personal conversations.
+The project is presently in an early v0.2.0 stage. When repository access permits, bug reports and scoped pull requests are welcome via [GitHub Issues](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/issues). Include a reproducible description, platform details, and relevant **redacted** logs; never attach browser profiles, the bridge key, or personal conversations.
 
 Before submitting a code change, run the applicable checks in [Development](#development). Use GitHub Issues for discussion unless GitHub Discussions is enabled.
 

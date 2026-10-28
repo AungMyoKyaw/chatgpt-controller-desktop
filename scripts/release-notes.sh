@@ -13,6 +13,11 @@ brew install --cask aungmyokyaw/tap/chatgpt-controller
 
 Homebrew availability follows the tap update. Alternatively, download the ARM64 ZIP and move **ChatGPT Controller.app** into Applications.
 
+### Build architecture
+- A small native Rust HTTP API sidecar replaces the compiled Bun runtime.
+- Bun is only needed when building from source; it is not bundled for end users.
+- Playwright CLI remains a separate dependency for browser automation.
+
 ### Requirements
 - Apple Silicon Mac, Google Chrome and Playwright CLI (`bun add -g @playwright/cli`).
 - Sign in yourself using the dedicated Chrome session; the app does not collect ChatGPT credentials.

@@ -6,13 +6,15 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "..");
+const version = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version;
+const tag = `v${version}`;
 const run = (script, args = []) =>
   spawnSync(process.execPath, [path.join(root, "scripts", script), ...args], {
     cwd: root, encoding: "utf8",
   });
 
 test("release version and license match three manifests", () => {
-  const result = run("verify-release-version.mjs", ["v0.1.0"]);
+  const result = run("verify-release-version.mjs", [tag]);
   assert.equal(result.status, 0, result.stderr);
 });
 
@@ -25,10 +27,10 @@ test("Homebrew cask generator pins version, URL and checksum", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "chatgpt-controller-tap-"));
   try {
     const sha = "a".repeat(64);
-    const result = run("update-homebrew-cask.mjs", [dir, "v0.1.0", sha]);
+    const result = run("update-homebrew-cask.mjs", [dir, tag, sha]);
     assert.equal(result.status, 0, result.stderr);
     const cask = readFileSync(path.join(dir, "Casks/chatgpt-controller.rb"), "utf8");
-    assert.match(cask, /version "0\.1\.0"/);
+    assert.ok(cask.includes(`version "${version}"`));
     assert.match(cask, /sha256 "a{64}"/);
     assert.ok(cask.includes("ChatGPT-Controller-v#{version}-macos-arm64.zip"));
     assert.match(cask, /depends_on arch: :arm64/);
