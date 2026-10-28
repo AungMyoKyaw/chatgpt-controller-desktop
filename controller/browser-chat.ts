@@ -28,49 +28,9 @@ export class BrowserBridgeError extends Error {
 const DEFAULT_SESSION = "chatgpt-research";
 const DEFAULT_TIMEOUT_MS = 125_000;
 
-function scriptForChat(
-  prompt: string,
-  newChat: boolean,
-  conversationPath?: string,
-): string {
-  return `async (page) => {
-    if (await page.getByRole("button", {name:"Open profile menu"}).count() === 0)
-      return {error:"LOGIN_REQUIRED"};
-    if (${JSON.stringify(conversationPath || null)}) await page.goto("https://chatgpt.com" + ${JSON.stringify(conversationPath || null)});
-    else if (${newChat}) await page.goto("https://chatgpt.com/");
-    const composer = page.getByRole("textbox", {name:/Ask ChatGPT|Chat with ChatGPT/});
-    await composer.waitFor({state:"visible", timeout:15000});
-    if (${JSON.stringify(conversationPath || null)}) {
-      const region=page.getByRole("region",{name:"Conversation"});
-      if ((await region.innerText()).includes("Could not load this ChatGPT conversation") ||
-          await region.getByText("You said:",{exact:true}).count()===0)
-        return {error:"UNAVAILABLE"};
-    }
-    const before = await page.getByText("ChatGPT said:", {exact:true}).count();
-    await composer.fill(${JSON.stringify(prompt)});
-    await composer.press("Enter");
-    const startedAt = Date.now();
-    let found = false;
-    let previous = "", stable = 0;
-    while (Date.now() - startedAt < 110000) {
-      const headings = page.getByText("ChatGPT said:", {exact:true});
-      if (await headings.count() > before) found = true;
-      if (found) {
-        const message = (await headings.last().locator("xpath=..").innerText())
-          .replace(/^ChatGPT said:\\s*/,"").trim();
-        if (message && message === previous) stable++; else stable=0;
-        previous=message;
-        // Wait for stable visible text; old regenerate controls may remain visible.
-        if (message && stable >= 8) {
-          const path=page.url().replace(/^https:\\/\\/chatgpt\\.com/, "");
-          return {reply:message,conversationPath:/^\\/c\\/[A-Za-z0-9-]+/.test(path)?path:null};
-        }
-      }
-      await page.waitForTimeout(500);
-    }
-    return {error:found?"RESPONSE_TIMEOUT":"NO_RESPONSE"};
-  }`;
-}
+export { buildChatScript } from "./chat-script.ts";
+import { buildChatScript } from "./chat-script.ts";
+
 export async function cliRunner(
   code: string,
   session: string,
@@ -85,10 +45,13 @@ export async function cliRunner(
   );
   const timer = setTimeout(() => subprocess.kill(), DEFAULT_TIMEOUT_MS);
   try {
-    const stdout = await new Response(subprocess.stdout).text();
-    // Consume stderr but intentionally do NOT echo it; CLI errors may contain page/user content.
-    await new Response(subprocess.stderr).text();
-    const code = await subprocess.exited;
+    // Drain stdout/stderr concurrently: a full stderr pipe must not stall the
+    // child while the parent is waiting for stdout to complete.
+    const [stdout, , code] = await Promise.all([
+      new Response(subprocess.stdout).text(),
+      new Response(subprocess.stderr).text(),
+      subprocess.exited,
+    ]);
     if (code !== 0)
       throw new BrowserBridgeError(
         "Playwright command failed. Check the persistent Chrome session.",
@@ -123,7 +86,7 @@ export async function sendChat(
     !/^\/c\/[0-9a-fA-F-]{36}$/.test(request.conversationPath)
   )
     throw new BrowserBridgeError("Invalid conversation path", 400);
-  const code = scriptForChat(
+  const code = buildChatScript(
     request.prompt,
     request.newChat !== false,
     request.conversationPath,

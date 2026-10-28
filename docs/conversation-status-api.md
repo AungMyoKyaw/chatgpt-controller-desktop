@@ -2,11 +2,11 @@
 
 The desktop controller exposes three authenticated endpoints:
 
-| Method | Route | Coverage |
-| --- | --- | --- |
-| GET | `/v1/conversations/{id}/status` | Any valid conversation ID, including conversations not open in a browser tab |
-| POST | `/v1/conversations/statuses` | Up to 50 supplied IDs per request (send multiple batches to cover more) |
-| GET | `/v1/conversations/statuses?limit=20&offset=0` | Paginated account-wide discovery and status checks, with a browser-sidebar fallback |
+| Method | Route                                          | Coverage                                                                            |
+| ------ | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/v1/conversations/{id}/status`                | Any valid conversation ID, including conversations not open in a browser tab        |
+| POST   | `/v1/conversations/statuses`                   | Up to 50 supplied IDs per request (send multiple batches to cover more)             |
+| GET    | `/v1/conversations/statuses?limit=20&offset=0` | Paginated account-wide discovery and status checks, with a browser-sidebar fallback |
 
 All routes require `X-Bridge-Key` and listen only on localhost. GET pages through the signed-in account index: increase `offset` by `count` while `hasMore` is true. If account discovery fails, an offset-0 request falls back to the loaded sidebar and returns `scope: loaded-sidebar-only`. Archived or otherwise unlisted conversations can still be checked with POST when their IDs are known.
 
@@ -50,9 +50,9 @@ Batch responses contain `statuses`, `count`, `scope`, and a four-category `summa
 - `failed`: Upstream explicitly reports an error, cancellation, or interruption.
 - `unavailable`: An upstream request failed, the response was not recognized, or another operation blocked inspection. The controller does not invent a definitive state from missing evidence. Check `reason` and `upstream_status` where supplied.
 
-`conversation_not_open` is no longer a final status. When the chat isn't open, the controller visits `https://chatgpt.com/backend-api/conversation/{id}/stream_status` using a short-lived browser tab. Existing ChatGPT conversation tabs are never navigated, stopped, or reloaded, and no login tokens are exported. The temporary tab is closed after inspection. Account listing applies the browser session token as a request header only inside a temporary Playwright tab; it is not exported via the controller API or saved to disk.
+`conversation_not_open` is no longer a final status. **Status checks use hidden, same-origin iframes inside an already authenticated ChatGPT page** to read `https://chatgpt.com/backend-api/conversation/{id}/stream_status`. No tabs are opened, navigated, or foregrounded for status polling; temporary iframes are removed automatically. Browser credentials are never exported to the local controller or saved to disk. A running ChatGPT page must exist in the signed-in Playwright session. If none is available, the response is `unavailable` with reason `no_authenticated_chatgpt_page`. Account **discovery** now uses the signed-in Playwright request context directly: no new tab, no navigation, no foreground switch. Successful discovery pages are cached for 60 seconds, while status readings are always fresh.
 
-A maximum of 50 IDs per batch avoids unbounded browser automation, and individual checks can be polled independently. Since inspecting a closed conversation involves browser navigation to a status endpoint, checking large batches can be slower than a two-second interval. For performance-sensitive monitoring, poll a smaller active subset.
+List, message-read, rename, archive, and delete routes also use authenticated request-context calls without tab navigation. The explicit open and chat-send routes retain their browser UI interactions. A maximum of 50 IDs per batch avoids unbounded browser automation. Batch status checks perform a **single Playwright operation** and load up to eight invisible status iframes concurrently, rather than opening a browser tab for each ID. A live local benchmark checked four conversations in approximately 1.54 seconds; this is not a guaranteed latency. Prefer polling a small active subset frequently; request paginated account discovery less often.
 
 ## TypeScript client
 

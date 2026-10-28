@@ -39,15 +39,15 @@ The macOS app manages a locally packaged HTTP controller. A separately installed
 | Guided setup            | Open a dedicated Chrome profile, sign in yourself, start the controller, and inspect connection state |
 | Native desktop utility  | Tauri 2 + Rust + Svelte 5 interface, light-first with dark-mode support                               |
 | Private local API       | HTTP on `127.0.0.1:8791` with a separate local `X-Bridge-Key`                                         |
-| Conversation access     | Create conversations, continue known threads, and read messages in the browser                        |
-| Conversation management | List **loaded sidebar** conversations; open, rename, archive, or delete a conversation                |
+| Conversation access     | Create/continue chats in the browser; read messages via authenticated background requests             |
+| Conversation management | Account-wide paginated listing; background rename, archive, delete and message reads; explicit open   |
 | API access page         | Copy endpoint, reveal/copy local key, or copy connection config as JSON                               |
 | API explorer            | Probe the authenticated conversation endpoint and explicitly submit a test prompt                     |
 | External client example | Relay, a separate Tauri/Svelte/Rust desktop chat client                                               |
 | Process ownership       | Stop only a controller process launched by this app; do not terminate an externally managed service   |
 | Built-in checks         | Report browser dependency, browser sign-in, and controller availability                               |
 
-The bridge executes **one browser operation at a time**. Conversation listing is limited to entries loaded in the browser's sidebar, not a complete account export.
+The bridge serializes UI-changing browser operations. Read-only account discovery and bulk status monitoring use authenticated background requests, without opening or switching tabs. Account discovery is paginated and can fall back to loaded sidebar entries when upstream listing is unavailable. Chat send and explicit open remain browser UI operations, but skip reloading a matching open conversation; response detection uses the visible generation-stop state instead of a fixed four-second delay. ChatGPT model generation latency remains outside the controller’s control.
 
 ## Quick start
 
@@ -158,17 +158,20 @@ Real application screens from the macOS build. Browser and controller status ref
 
 **Content type:** `application/json` for JSON request bodies
 
-| Method   | Endpoint                            | Purpose                                                   |
-| -------- | ----------------------------------- | --------------------------------------------------------- |
-| `GET`    | `/health`                           | Check whether the HTTP bridge is running; unauthenticated |
-| `GET`    | `/v1/conversations?limit=25`        | List loaded sidebar conversations (limit `1`–`100`)       |
-| `GET`    | `/v1/conversations/{uuid}/messages` | Read conversation messages                                |
-| `POST`   | `/v1/conversations/{uuid}/open`     | Open a known conversation                                 |
-| `POST`   | `/v1/chat`                          | Create a conversation or reply using `conversation_path`  |
-| `POST`   | `/v1/chat/completions`              | Limited non-streaming JSON compatibility                  |
-| `PATCH`  | `/v1/conversations/{uuid}`          | Rename via `{"title":"New title"}`                        |
-| `POST`   | `/v1/conversations/{uuid}/archive`  | Archive with a JSON body (`{}`)                           |
-| `DELETE` | `/v1/conversations/{uuid}`          | Delete only with `{"confirm":true}`                       |
+| Method   | Endpoint                                       | Purpose                                                        |
+| -------- | ---------------------------------------------- | -------------------------------------------------------------- |
+| `GET`    | `/health`                                      | Check whether the HTTP bridge is running; unauthenticated      |
+| `GET`    | `/v1/conversations?limit=25`                   | Background account listing (limit `1`–`100`); sidebar fallback |
+| `GET`    | `/v1/conversations/{uuid}/messages`            | Read conversation messages in background                       |
+| `GET`    | `/v1/conversations/{uuid}/status`              | Check individual generation status                             |
+| `GET`    | `/v1/conversations/statuses?limit=20&offset=0` | Monitor paginated account conversations                        |
+| `POST`   | `/v1/conversations/statuses`                   | Monitor 1–50 explicit conversation IDs                         |
+| `POST`   | `/v1/conversations/{uuid}/open`                | Open a known conversation                                      |
+| `POST`   | `/v1/chat`                                     | Create a conversation or reply using `conversation_path`       |
+| `POST`   | `/v1/chat/completions`                         | Limited non-streaming JSON compatibility                       |
+| `PATCH`  | `/v1/conversations/{uuid}`                     | Rename via `{"title":"New title"}`                             |
+| `POST`   | `/v1/conversations/{uuid}/archive`             | Archive with a JSON body (`{}`)                                |
+| `DELETE` | `/v1/conversations/{uuid}`                     | Delete only with `{"confirm":true}`                            |
 
 The compatibility endpoint is **not** a drop-in replacement for OpenAI's API: `stream:true` is unsupported, arbitrary model IDs are unsupported, and the browser controller has different response semantics and limits. If specifying a model, `chatgpt-web` is the only accepted value.
 
@@ -274,9 +277,9 @@ For the rationale behind the light-first **Quiet Control Room** design, see [DES
 
 - **Not an official API or model gateway.** Site changes may break browser selectors and therefore bridge functionality.
 - **No limit bypass.** ChatGPT usage limits, availability, browser access and applicable account restrictions still apply.
-- **One browser action at a time.** The bridge returns a busy response instead of running simultaneous requests.
+- **One UI-changing browser action at a time.** During an in-flight chat, polling known IDs reports its local in-progress state without triggering additional navigation.
 - **No true token streaming.** The compatibility route returns a completed response, not token-by-token events.
-- **Incomplete conversation discovery.** The list is limited to currently loaded sidebar threads.
+- **Conversation discovery limitations.** Account-index paging can omit archived or otherwise unlisted chats; the sidebar fallback declares reduced coverage.
 - **Browser-dependent reliability.** A response timeout does **not** guarantee that ChatGPT did not already receive the prompt. Inspect Chrome before sending a duplicate.
 - **Platform and distribution scope.** Only macOS Apple Silicon is documented; Chrome and Playwright CLI remain external prerequisites; the current app bundle is unsigned.
 - **Local access is still sensitive.** Anyone able to read the key and reach the local port may perform available chat operations, including destructive ones.

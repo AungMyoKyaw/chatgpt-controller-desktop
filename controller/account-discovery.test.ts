@@ -1,7 +1,32 @@
 import { test, expect } from "bun:test";
-import { discoverAccountConversations } from "./conversation-status.ts";
+import {
+  buildAccountDiscoveryScript,
+  discoverAccountConversations,
+} from "./conversation-status.ts";
 
 const id = "12345678-1234-1234-1234-123456789abc";
+test("production account discovery does not navigate or focus tabs", async () => {
+  const script = buildAccountDiscoveryScript(3, 6);
+  expect(script).toContain("page.context().request");
+  expect(script).not.toContain("tab-new");
+  expect(script).not.toContain(".goto(");
+  let calls = 0;
+  const result = await discoverAccountConversations(3, 6, {
+    runner: async (code) => {
+      calls++;
+      expect(code).toContain("offset=6&limit=3");
+      return JSON.stringify({
+        total: 10,
+        conversations: [{ id, title: "Example" }],
+      });
+    },
+  });
+  expect(result.scope).toBe("account-conversations");
+  expect(result.total).toBe(10);
+  expect(result.offset).toBe(6);
+  expect(calls).toBe(1);
+});
+
 test("account-wide discovery pages and closes its temporary auth tab", async () => {
   const actions: string[] = [];
   const result = await discoverAccountConversations(5, 10, {

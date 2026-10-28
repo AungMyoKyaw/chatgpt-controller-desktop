@@ -69,7 +69,11 @@
   const base = "http://127.0.0.1:8791";
   const endpoints = [
     ["GET", "/health", "Health and availability"],
-    ["GET", "/v1/conversations", "List loaded sidebar chats"],
+    [
+      "GET",
+      "/v1/conversations",
+      "List account conversations without tab navigation",
+    ],
     ["GET", "/v1/conversations/{id}/messages", "Read visible messages"],
     ["GET", "/v1/conversations/{id}/status", "Check active generation status"],
     [
@@ -588,7 +592,10 @@
             <div class="panel-top">
               <div>
                 <h2>Authenticated connectivity</h2>
-                <p>Read five conversation summaries from the loaded sidebar.</p>
+                <p>
+                  Read five conversation summaries through the background
+                  account API.
+                </p>
               </div>
               <span class="tag"><ShieldCheck size={14} />READ ONLY</span>
             </div>
@@ -608,7 +615,7 @@
                 <div>
                   <strong>HTTP 200 — Request succeeded</strong>
                   <p>
-                    {testCount} conversations available in the currently loaded sidebar.
+                    {testCount} conversations returned by the controller.
                   </p>
                 </div>
               </div>{/if}

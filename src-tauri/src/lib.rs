@@ -134,19 +134,29 @@ fn cli_output(args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&result.stdout).to_string())
 }
 fn browser_state() -> (bool, bool) {
-    let list = match cli_output(&["list"]) {
+    // One lightweight background session check. Do not snapshot the full page
+    // (which is expensive and can accidentally inspect user content).
+    let code = r#"async(page)=>{try{
+      const r=await page.context().request.get("https://chatgpt.com/api/auth/session",{timeout:5000});
+      if(!r.ok())return {authenticated:false};
+      const session=await r.json();
+      return {authenticated:typeof session.accessToken==="string"};
+    }catch{return {authenticated:false}}}"#;
+    let result = match cli_output(&[&format!("-s={BROWSER_SESSION}"), "run-code", code]) {
         Ok(s) => s,
         Err(_) => return (false, false),
     };
-    let marker = format!("- {BROWSER_SESSION}:");
-    if !list.contains(&marker) {
-        return (false, false);
-    }
-    let snapshot = cli_output(&[&format!("-s={BROWSER_SESSION}"), "snapshot", "--depth=7"]);
-    let logged_in = snapshot
-        .map(|s| s.contains("Open profile menu"))
+    let parsed = result
+        .split("### Result\n")
+        .nth(1)
+        .and_then(|tail| tail.lines().next())
+        .and_then(|line| serde_json::from_str::<Value>(line).ok());
+    let authenticated = parsed
+        .as_ref()
+        .and_then(|value| value.get("authenticated"))
+        .and_then(Value::as_bool)
         .unwrap_or(false);
-    (true, logged_in)
+    (true, authenticated)
 }
 async fn health(client: &Client) -> Option<Value> {
     let response = client.get(format!("{API_URL}/health")).send().await.ok()?;

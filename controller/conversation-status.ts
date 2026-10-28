@@ -82,6 +82,7 @@ export function interpretStreamStatus(
       "INPROGRESS",
       "RUNNING",
       "STREAMING",
+      "IS_STREAMING",
       "ACTIVE",
       "PENDING",
       "PROCESSING",
@@ -203,6 +204,10 @@ export async function fetchUpstreamStreamStatus(
 ): Promise<ConversationStatus> {
   const id = validateId(conversationId);
   validateSession(session);
+  // Compatibility export: real calls also use the invisible-frame fast path.
+  // The custom browserCommand branch exists only for legacy injected tests.
+  if (browserCommand === runBrowserCommand)
+    return (await fetchFastStreamStatuses([id], { session }))[0];
   const url =
     "https://chatgpt.com/backend-api/conversation/" + id + "/stream_status";
   let tabIndex: number | null = null;
@@ -240,6 +245,142 @@ export async function fetchUpstreamStreamStatus(
   }
 }
 
+/** Hidden same-origin iframes let the existing signed-in page load first-party
+ * stream status without switching tabs or exporting browser credentials.
+ * One Playwright invocation checks up to 50 conversations with bounded concurrency.
+ */
+export function buildFastStatusScript(conversationIds: string[]): string {
+  if (
+    !Array.isArray(conversationIds) ||
+    conversationIds.length < 1 ||
+    conversationIds.length > 50
+  )
+    throw new BrowserBridgeError(
+      "Status batch requires 1-50 conversation IDs",
+      400,
+    );
+  const ids = [...new Set(conversationIds.map(validateId))];
+  return [
+    "async (page) => {",
+    "  const ids = " + JSON.stringify(ids) + ";",
+    "  const tabs = page.context().pages().filter(tab => !tab.isClosed());",
+    "  const active = new Set();",
+    "  for (const tab of tabs) {",
+    "    const match = /^https:\\/\\/chatgpt\\.com\\/c\\/([0-9a-f-]{36})(?:[?#]|$)/i.exec(tab.url());",
+    "    if (!match || !ids.includes(match[1].toLowerCase())) continue;",
+    "    if (await tab.getByRole('button', {name:'Stop',exact:true}).count() > 0) active.add(match[1].toLowerCase());",
+    "  }",
+    "  const host = tabs.find(tab => /^https:\\/\\/chatgpt\\.com\\//.test(tab.url()) &&",
+    "    !tab.url().startsWith('https://chatgpt.com/backend-api/') &&",
+    "    !tab.url().startsWith('https://chatgpt.com/api/'));",
+    "  if (!host) return {results:ids.map(id=>({id, ...(active.has(id) ? {status:'in_progress',source:'browser-ui'} : {error:'no_authenticated_chatgpt_page'})}))};",
+    "  const remaining = ids.filter(id => !active.has(id));",
+    "  const checked = await host.evaluate(async (targets) => {",
+    "    const output = new Array(targets.length);",
+    "    let index = 0;",
+    "    const check = async (id) => {",
+    "      const frame = document.createElement('iframe');",
+    "      frame.setAttribute('aria-hidden','true');",
+    "      frame.style.cssText = 'display:none!important;width:0;height:0;border:0;visibility:hidden;pointer-events:none';",
+    "      try {",
+    "        return await new Promise(resolve => {",
+    "          let settled = false;",
+    "          const finish = value => {if(settled)return;settled=true;clearTimeout(timer);resolve(value)};",
+    "          const timer = setTimeout(()=>finish({error:'upstream_timeout'}),8500);",
+    "          frame.onload = () => {",
+    "            try {",
+    "              const body = frame.contentDocument?.body?.innerText || '';",
+    "              const payload = JSON.parse(body);",
+    "              if (!payload || typeof payload !== 'object') throw Error('invalid_payload');",
+    "              finish({payload});",
+    "            } catch {finish({error:'invalid_upstream_response'})}",
+    "          };",
+    "          frame.onerror = () => finish({error:'upstream_load_failed'});",
+    "          frame.src = '/backend-api/conversation/' + id + '/stream_status';",
+    "          document.body.appendChild(frame);",
+    "        });",
+    "      } finally {frame.remove()}",
+    "    };",
+    "    await Promise.all(Array.from({length:Math.min(8,targets.length)}, async () => {",
+    "      while(index < targets.length) {const at = index++; output[at] = await check(targets[at])}",
+    "    }));",
+    "    return output;",
+    "  }, remaining);",
+    "  const byId = new Map(remaining.map((id,i)=>[id,checked[i]]));",
+    "  return {results:ids.map(id => active.has(id) ? {id,status:'in_progress',source:'browser-ui'} : {id,...byId.get(id)})};",
+    "}",
+  ].join("\n");
+}
+
+export async function fetchFastStreamStatuses(
+  conversationIds: string[],
+  options: { session?: string; runner?: Runner } = {},
+): Promise<ConversationStatus[]> {
+  const ids = [...new Set(conversationIds.map(validateId))];
+  const session = validateSession(options.session || DEFAULT_SESSION);
+  const code = buildFastStatusScript(ids);
+  let result: unknown;
+  try {
+    result = JSON.parse(await (options.runner || cliRunner)(code, session));
+  } catch {
+    return ids.map((id) =>
+      statusResult(
+        id,
+        "unavailable",
+        "upstream-stream-status",
+        "browser_status_unavailable",
+      ),
+    );
+  }
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !Array.isArray((result as Record<string, unknown>).results)
+  )
+    return ids.map((id) =>
+      statusResult(
+        id,
+        "unavailable",
+        "upstream-stream-status",
+        "invalid_browser_result",
+      ),
+    );
+  const records = (result as { results: unknown[] }).results;
+  const mapped = new Map<string, ConversationStatus>();
+  for (const item of records) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const data = item as Record<string, unknown>;
+    if (typeof data.id !== "string" || !ids.includes(data.id)) continue;
+    if (data.source === "browser-ui" && data.status === "in_progress") {
+      mapped.set(data.id, statusResult(data.id, "in_progress", "browser-ui"));
+    } else if (data.payload && typeof data.payload === "object") {
+      mapped.set(data.id, interpretStreamStatus(data.id, data.payload));
+    } else {
+      mapped.set(
+        data.id,
+        statusResult(
+          data.id,
+          "unavailable",
+          "upstream-stream-status",
+          typeof data.error === "string"
+            ? data.error.slice(0, 80)
+            : "missing_upstream_result",
+        ),
+      );
+    }
+  }
+  return ids.map(
+    (id) =>
+      mapped.get(id) ??
+      statusResult(
+        id,
+        "unavailable",
+        "upstream-stream-status",
+        "missing_upstream_result",
+      ),
+  );
+}
+
 export type StatusOptions = {
   session?: string;
   runner?: Runner;
@@ -253,6 +394,10 @@ export async function getConversationStatus(
 ): Promise<ConversationStatus> {
   const id = validateId(conversationId);
   const session = validateSession(options.session || DEFAULT_SESSION);
+  // Default production path: one hidden-iframe inspection, no new tabs.
+  // Legacy runner/upstream overrides remain available for deterministic tests.
+  if (!options.runner && !options.upstream)
+    return (await fetchFastStreamStatuses([id], { session }))[0];
   let browserStatus: Record<string, unknown> | null = null;
   try {
     const parsed = JSON.parse(
@@ -300,6 +445,34 @@ function parseToolResult(stdout: string): unknown {
   }
 }
 
+export function buildAccountDiscoveryScript(
+  limit: number,
+  offset: number,
+): string {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+    throw new BrowserBridgeError("Limit must be 1-50", 400);
+  if (!Number.isInteger(offset) || offset < 0 || offset > 1_000_000)
+    throw new BrowserBridgeError("Offset must be 0-1000000", 400);
+  return `async (page) => {
+    // All work is performed in the Playwright APIRequestContext; this does
+    // not open, navigate, or focus a browser tab.
+    const request = page.context().request;
+    const auth = await request.get("https://chatgpt.com/api/auth/session", {timeout:9000});
+    if (!auth.ok()) return {error:"AUTH_SESSION_FAILED"};
+    const session = await auth.json();
+    if (typeof session.accessToken !== "string") return {error:"LOGIN_REQUIRED"};
+    const api = await request.get("https://chatgpt.com/backend-api/conversations?offset=${offset}&limit=${limit}&order=updated", {
+      headers:{authorization:"Bearer " + session.accessToken},
+      timeout:12000
+    });
+    if (api.status() === 401 || api.status() === 403) return {error:"LOGIN_REQUIRED"};
+    if (!api.ok()) return {error:"UPSTREAM_UNAVAILABLE",status:api.status()};
+    const j = await api.json();
+    return {total:j.total,offset:${offset},limit:${limit},
+      conversations:Array.isArray(j.items)?j.items.map(x=>({id:x.id,title:x.title})):null};
+  }`;
+}
+
 /**
  * Enumerate the signed-in account's paginated conversation index. The short-lived
  * auth token is applied only as a header within the temporary Playwright tab,
@@ -308,14 +481,65 @@ function parseToolResult(stdout: string): unknown {
 export async function discoverAccountConversations(
   limit = 20,
   offset = 0,
-  options: { session?: string; command?: BrowserCommand } = {},
+  options: { session?: string; command?: BrowserCommand; runner?: Runner } = {},
 ): Promise<AccountConversationPage> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50)
     throw new BrowserBridgeError("Limit must be 1-50", 400);
   if (!Number.isInteger(offset) || offset < 0 || offset > 1_000_000)
     throw new BrowserBridgeError("Offset must be 0-1000000", 400);
   const session = validateSession(options.session || DEFAULT_SESSION);
-  const browser = options.command || runBrowserCommand;
+  // Production path never opens a tab. Legacy command injection is retained
+  // only for existing isolated tests.
+  if (!options.command) {
+    let data: unknown;
+    try {
+      data = JSON.parse(
+        await (options.runner || cliRunner)(
+          buildAccountDiscoveryScript(limit, offset),
+          session,
+        ),
+      );
+    } catch {
+      throw new BrowserBridgeError(
+        "Account conversation listing unavailable",
+        503,
+      );
+    }
+    if (!data || typeof data !== "object")
+      throw new BrowserBridgeError("Invalid account conversation listing", 502);
+    const response = data as Record<string, unknown>;
+    if (response.error === "LOGIN_REQUIRED")
+      throw new BrowserBridgeError(
+        "ChatGPT browser session requires login",
+        401,
+      );
+    if (
+      !Array.isArray(response.conversations) ||
+      !Number.isInteger(response.total)
+    )
+      throw new BrowserBridgeError(
+        "Account conversation listing unavailable",
+        503,
+      );
+    const conversations = response.conversations
+      .filter(
+        (v: unknown): v is { id: string; title?: string } =>
+          !!v && typeof v === "object" && typeof (v as any).id === "string",
+      )
+      .map((v) => ({
+        id: validateId(v.id),
+        title: String(v.title || "").slice(0, 200),
+      }));
+    return {
+      conversations,
+      total: Number(response.total),
+      limit,
+      offset,
+      hasMore: offset + conversations.length < Number(response.total),
+      scope: "account-conversations",
+    };
+  }
+  const browser = options.command;
   let tabIndex: number | null = null;
   const authUrl = "https://chatgpt.com/api/auth/session";
   const apiUrl =

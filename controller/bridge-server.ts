@@ -6,6 +6,7 @@
 import { timingSafeEqual } from "node:crypto";
 import {
   getConversationStatus,
+  fetchFastStreamStatuses,
   discoverVisibleConversations,
   discoverAccountConversations,
   type ConversationStatus,
@@ -34,6 +35,7 @@ export type HandlerDeps = {
   send?: typeof sendChat;
   control?: typeof controlConversation;
   status?: typeof getConversationStatus;
+  batchStatus?: typeof fetchFastStreamStatuses;
   discover?: typeof discoverAccountConversations;
   discoverVisible?: typeof discoverVisibleConversations;
   key: string;
@@ -153,6 +155,15 @@ function matchRoute(
 export function createHandler(deps: HandlerDeps) {
   let busy = false;
   let activeChatId: string | null = null;
+  // Discovery IDs change less often than generation state. Cache only IDs,
+  // never statuses, so frequent polling does not reopen a discovery tab.
+  const discoveryCache = new Map<
+    string,
+    {
+      expires: number;
+      value: Awaited<ReturnType<typeof discoverAccountConversations>>;
+    }
+  >();
   return async (req: Request): Promise<Response> => {
     const u = new URL(req.url);
     if (!["127.0.0.1", "localhost"].includes(u.hostname))
@@ -183,6 +194,72 @@ export function createHandler(deps: HandlerDeps) {
         source: "local-operation",
         ...(!active ? { reason: "browser_operation_busy" } : {}),
       });
+    }
+    if (busy && route.type === "statuses") {
+      try {
+        let ids: string[];
+        let scope: string;
+        let total: number | undefined;
+        let hasMore: boolean | undefined;
+        if (route.explicit) {
+          const body = await getBody(req);
+          if (
+            !Array.isArray(body.ids) ||
+            body.ids.length < 1 ||
+            body.ids.length > 50
+          )
+            throw new BrowserBridgeError(
+              "ids must contain 1-50 conversation IDs",
+              400,
+            );
+          ids = [...new Set(body.ids.map(validateId))];
+          scope = "explicit-ids";
+        } else {
+          const cached = discoveryCache.get(route.limit + ":" + route.offset);
+          if (!cached || cached.expires <= Date.now())
+            return json(
+              {
+                error:
+                  "Account discovery unavailable while a chat operation is running",
+                scope: "account-index-not-cached",
+              },
+              503,
+            );
+          ids = cached.value.conversations.map((x) => x.id);
+          total = cached.value.total;
+          hasMore = cached.value.hasMore;
+          scope = cached.value.scope;
+        }
+        const statuses: ConversationStatus[] = ids.map((id) => ({
+          id,
+          conversationPath: "/c/" + id,
+          status: activeChatId === id ? "in_progress" : "unavailable",
+          in_progress: activeChatId === id ? true : null,
+          source: "local-operation",
+          ...(activeChatId === id ? {} : { reason: "browser_operation_busy" }),
+        }));
+        return json({
+          statuses,
+          count: statuses.length,
+          scope,
+          ...(total === undefined
+            ? {}
+            : { total, hasMore, offset: route.offset }),
+          summary: {
+            in_progress: statuses.filter((x) => x.status === "in_progress")
+              .length,
+            completed: 0,
+            failed: 0,
+            unavailable: statuses.filter((x) => x.status === "unavailable")
+              .length,
+          },
+        });
+      } catch (e) {
+        return json(
+          { error: e instanceof Error ? e.message : "Invalid batch request" },
+          e instanceof BrowserBridgeError ? e.status : 400,
+        );
+      }
     }
     if (busy)
       return json({ error: "Another browser operation is in progress" }, 429);
@@ -219,9 +296,21 @@ export function createHandler(deps: HandlerDeps) {
             ids = [...new Set(data.ids.map((id) => validateId(id)))];
           } else {
             try {
-              const account = await (
-                deps.discover || discoverAccountConversations
-              )(route.limit, route.offset, { session: deps.session });
+              const key = route.limit + ":" + route.offset;
+              const cached = discoveryCache.get(key);
+              const account =
+                cached && cached.expires > Date.now()
+                  ? cached.value
+                  : await (deps.discover || discoverAccountConversations)(
+                      route.limit,
+                      route.offset,
+                      { session: deps.session },
+                    );
+              if (!cached || cached.expires <= Date.now())
+                discoveryCache.set(key, {
+                  expires: Date.now() + 60_000,
+                  value: account,
+                });
               ids = account.conversations.map((entry) => validateId(entry.id));
               scope = account.scope;
               total = account.total;
@@ -237,23 +326,30 @@ export function createHandler(deps: HandlerDeps) {
             }
           }
           const statuses: ConversationStatus[] = [];
-          for (const id of ids) {
-            try {
-              statuses.push(
-                await (deps.status || getConversationStatus)(id, {
-                  session: deps.session,
-                }),
-              );
-            } catch {
-              statuses.push({
-                id,
-                conversationPath: "/c/" + id,
-                status: "unavailable",
-                in_progress: null,
-                source: "upstream-stream-status",
-                reason: "inspection_failed",
-              });
+          if (deps.status && !deps.batchStatus) {
+            // Preserve deterministic per-item injection for existing clients/tests.
+            for (const id of ids) {
+              try {
+                statuses.push(await deps.status(id, { session: deps.session }));
+              } catch {
+                statuses.push({
+                  id,
+                  conversationPath: "/c/" + id,
+                  status: "unavailable",
+                  in_progress: null,
+                  source: "upstream-stream-status",
+                  reason: "inspection_failed",
+                });
+              }
             }
+          } else if (ids.length) {
+            // Single Playwright call for the whole page, up to 8 hidden network
+            // frames concurrently. Never foreground a conversation or navigate a tab.
+            statuses.push(
+              ...(await (deps.batchStatus || fetchFastStreamStatuses)(ids, {
+                session: deps.session,
+              })),
+            );
           }
           return json({
             statuses,
