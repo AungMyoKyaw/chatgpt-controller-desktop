@@ -1,0 +1,56 @@
+name: Controller CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controller-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-and-controller:
+    name: Typecheck, unit tests and release validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install pinned dependencies
+        run: bun install --frozen-lockfile
+      - name: Check release metadata
+        run: node scripts/verify-release-version.mjs
+      - name: Svelte / TypeScript
+        run: bun run check
+      - name: Controller unit tests
+        run: bun test controller
+      - name: Release tooling tests
+        run: node --test tests/release-scripts.test.mjs
+      - name: Build web interface
+        run: bun run build
+
+  rust:
+    name: Rust format and tests (macOS ARM64)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - name: Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml

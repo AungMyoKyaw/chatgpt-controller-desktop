@@ -1,0 +1,148 @@
+name: macOS ARM64 Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controller-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Require matching version and license
+        run: node scripts/verify-release-version.mjs
+      - run: bun run check
+      - run: bun test controller
+      - run: node --test tests/release-scripts.test.mjs
+      - run: bun run build
+
+  build:
+    name: Build and package ARM64
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Verify native runner
+        run: |
+          test "$(uname -m)" = "arm64"
+          rustc -vV
+      - run: bun install --frozen-lockfile
+      - name: Build Tauri app and compiled Bun sidecar
+        run: bun run tauri build --bundles app --target aarch64-apple-darwin
+      - name: Package ad-hoc signed app with checksums
+        run: bash scripts/package-macos-release.sh
+      - name: Verify ZIP content and architecture
+        run: |
+          unzip -Z -1 dist/ChatGPT-Controller-*.zip | grep -Fx 'ChatGPT Controller.app/Contents/MacOS/chatgpt-controller-desktop'
+          unzip -Z -1 dist/ChatGPT-Controller-*.zip | grep -Fx 'ChatGPT Controller.app/Contents/Resources/bin/controller'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-controller-macos-arm64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Create and publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: chatgpt-controller-macos-arm64
+          path: dist
+      - name: Check release assets and source visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && sha256sum --check SHA256SUMS)
+          test "$(gh api "repos/${GITHUB_REPOSITORY}" --jq .private)" = "false" || {
+            echo "::error::Repository must be public before publishing downloadable releases for Homebrew."
+            exit 1
+          }
+          test "$(find dist -maxdepth 1 -name '*.zip' -type f | wc -l | tr -d ' ')" = 1
+      - name: Create draft, upload verified assets, and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/release-notes.sh "$GITHUB_REF_NAME" > release-notes.md
+          ASSETS=(dist/*.zip)
+          gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "ChatGPT Controller $GITHUB_REF_NAME" \
+            --notes-file release-notes.md
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+
+  homebrew:
+    name: Update Homebrew tap
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: chatgpt-controller-macos-arm64
+          path: dist
+      - name: Update cask in separate tap repository
+        if: env.TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check SHA256SUMS)
+          SHA="$(awk 'NR == 1 {print $1}' dist/SHA256SUMS)"
+          gh repo clone AungMyoKyaw/homebrew-tap /tmp/chatgpt-controller-homebrew-tap -- --depth=1
+          node scripts/update-homebrew-cask.mjs /tmp/chatgpt-controller-homebrew-tap "$GITHUB_REF_NAME" "$SHA"
+          cd /tmp/chatgpt-controller-homebrew-tap
+          ruby -c Casks/chatgpt-controller.rb
+          git add Casks/chatgpt-controller.rb
+          if git diff --cached --quiet; then
+            echo "Cask is already up to date"
+          else
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "cask: update chatgpt-controller to $GITHUB_REF_NAME"
+            git push origin HEAD:master
+          fi
+      - name: Explain optional cross-repository credential
+        if: env.TAP_TOKEN == ''
+        run: |
+          echo "::warning::Set HOMEBREW_TAP_TOKEN (contents:write to AungMyoKyaw/homebrew-tap) to automate cask publication."
+          echo "Release published. Homebrew tap update not configured yet." >> "$GITHUB_STEP_SUMMARY"

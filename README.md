@@ -259,6 +259,13 @@ The Tauri application is configured with a local Vite development server. The na
 
 For the rationale behind the light-first **Quiet Control Room** design, see [DESIGN.md](DESIGN.md). For product goals, see [PRODUCT.md](PRODUCT.md).
 
+### GitHub Actions CI/CD and releases
+
+- [Controller CI](.github/workflows/ci.yml) checks source, tests, and Rust on every pull request and push to `master`.
+- [macOS ARM64 Release](.github/workflows/release.yml) builds an ad-hoc signed `.app` ZIP with SHA-256 checksums. Manual workflow dispatch builds an artifact without publishing; an annotated `vX.Y.Z` tag publishes a release once the repository is public.
+- The release workflow can update the Homebrew tap automatically when the scoped `HOMEBREW_TAP_TOKEN` repository secret is configured.
+- See [Release engineering guide](docs/RELEASING.md) for setup, tagging, verification, and rollback.
+
 ## Troubleshooting
 
 | Symptom                                   | What to check                                                                                                           |
