@@ -1,0 +1,70 @@
+name: Website · checks and GitHub Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website-pages.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website-pages.yml'
+  public:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controller-website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and validate static site
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Type and Svelte checks
+        run: bun run check
+      - name: Source lint
+        run: bun run lint
+      - name: Build for GitHub Pages project URL
+        env:
+          SITE_BASE_PATH: /${{ github.event.repository.name }}
+        run: bun run build
+      - name: Validate generated pages
+        run: bun run test:smoke
+      - name: Upload built Pages site
+        if: github.event_name != 'pull_request' && !github.event.repository.private
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    name: Publish website
+    if: github.event_name != 'pull_request' && !github.event.repository.private
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
