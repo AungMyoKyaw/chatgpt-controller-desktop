@@ -48,7 +48,7 @@ make build
 open "src-tauri/target/release/bundle/macos/ChatGPT Controller.app"
 ```
 
-Published v0.1.0 builds use ad-hoc signing, **not Developer ID signing or Apple notarization**. Depending on macOS settings, a downloaded application may require manual approval in **System Settings → Privacy & Security**.
+Published v0.1.0 builds use ad-hoc signing, **not Developer ID signing or Apple notarization**. The Homebrew cask runs a nonfatal, recursive `xattr` postflight step to remove `com.apple.quarantine` from only the installed app bundle. Direct downloads, or systems where the postflight step fails, may require manual approval in **System Settings → Privacy & Security**.
 
 ## Connect
 

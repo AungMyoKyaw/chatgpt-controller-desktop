@@ -32,7 +32,10 @@ test("Homebrew cask generator pins version, URL and checksum", () => {
     assert.match(cask, /sha256 "a{64}"/);
     assert.ok(cask.includes("ChatGPT-Controller-v#{version}-macos-arm64.zip"));
     assert.match(cask, /depends_on arch: :arm64/);
-    assert.doesNotMatch(cask, /postflight_steps/);
+    assert.match(cask, /postflight_steps do/);
+    assert.match(cask, /run "\/usr\/bin\/xattr"/);
+    assert.ok(cask.includes('["-dr", "com.apple.quarantine", "{{appdir}}/ChatGPT Controller.app"]'));
+    assert.match(cask, /must_succeed: false/);
     const syntax = spawnSync("ruby", ["-c", path.join(dir, "Casks/chatgpt-controller.rb")], { encoding: "utf8" });
     assert.equal(syntax.status, 0, syntax.stderr);
   } finally {

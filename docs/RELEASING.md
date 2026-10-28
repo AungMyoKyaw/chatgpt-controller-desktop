@@ -80,9 +80,11 @@ The current app uses an isolated Chrome profile and a localhost key. Google
 Chrome and the `@playwright/cli` command are **external requirements** in
 v0.1.0. No user session or credential is packaged into the release.
 
-The ZIP is ad-hoc signed, not Apple Developer ID signed or notarized. Cask
-installation does not remove quarantine automatically. Users may need to
-approve the app through macOS Privacy & Security.
+The ZIP is ad-hoc signed, not Apple Developer ID signed or notarized. The
+Homebrew cask runs `/usr/bin/xattr -dr com.apple.quarantine` on only the
+installed `ChatGPT Controller.app` bundle as a nonfatal postflight step. This
+removes the usual quarantine prompt but does not notarize the binary; users
+may still need to approve the app through macOS Privacy & Security.
 
 ## Failure and retry
 

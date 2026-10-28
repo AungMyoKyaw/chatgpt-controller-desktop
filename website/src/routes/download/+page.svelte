@@ -51,6 +51,6 @@
   <div class="detail"><h3>Apple Silicon Mac</h3><p>The release archive targets ARM64. Intel macOS, Windows, and Linux packages are not provided.</p></div>
   <div class="detail"><h3>Google Chrome</h3><p>Install Chrome locally. The controller opens a dedicated visible browser profile for you to sign in.</p></div>
   <div class="detail"><h3>Playwright CLI</h3><p>Version 0.1.0 requires Playwright CLI separately. Install it with <code>bun add -g @playwright/cli</code> and check <code>playwright-cli --help</code>.</p></div>
-  <div class="detail"><h3>macOS signing</h3><p>The app uses ad-hoc signing, not Apple Developer ID signing or notarization. If macOS blocks the first launch, approve it in System Settings → Privacy &amp; Security.</p></div>
+  <div class="detail"><h3>macOS signing</h3><p>The app uses ad-hoc signing, not Apple Developer ID signing or notarization. Homebrew tries to remove quarantine recursively from the installed app during postflight. For a direct download, or if macOS still blocks launch, use System Settings → Privacy &amp; Security.</p></div>
   <p style="margin:36px 0 90px" class="muted">Independent, unofficial browser automation software. Not an OpenAI product or the official OpenAI API.</p>
 </div>

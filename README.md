@@ -80,7 +80,7 @@ brew install --cask aungmyokyaw/tap/chatgpt-controller
 
 **Direct download:** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.1.0), download `ChatGPT-Controller-v0.1.0-macos-arm64.zip`, verify the digest in `SHA256SUMS`, extract the archive, and move `ChatGPT Controller.app` into Applications.
 
-> Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. macOS may require approval in **System Settings → Privacy & Security** before first launch. Chrome and Playwright CLI are separate prerequisites for v0.1.0.
+> Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. The Homebrew cask now attempts to remove quarantine from the installed app bundle recursively as a nonfatal postflight step; direct downloads or blocked launches may still need approval in **System Settings → Privacy & Security**. Chrome and Playwright CLI are separate prerequisites for v0.1.0.
 
 **Build and launch from source** (with repository access):
 
@@ -282,7 +282,7 @@ For the rationale behind the light-first **Quiet Control Room** design, see [DES
 | **Conversation not found or unavailable** | The identifier must be a valid conversation UUID and the thread must be accessible in the signed-in browser             |
 | **HTTP 422**                              | Remove unsupported `stream:true` or model selection; use non-streaming requests and `chatgpt-web` if providing a model  |
 | **HTTP 502/503/504 or timeout**           | Inspect the Chrome window; the page may have changed or a submitted message may still finish after the bridge times out |
-| **Downloaded app will not open**          | The release is not signed/notarized; use macOS's trusted-app opening workflow or build locally from source              |
+| **Downloaded app will not open**          | The release is ad-hoc signed, not notarized; Homebrew clears app quarantine, while direct downloads may require macOS Privacy & Security approval |
 
 ## Limitations
 
