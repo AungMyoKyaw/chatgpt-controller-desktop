@@ -72,11 +72,15 @@ The app looks for Playwright CLI on `PATH` and in several common Bun, mise, and 
 
 ### 1. Get the application
 
-**Prebuilt app (when a GitHub Release is published):** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases), download the macOS ARM64 archive, extract it, and open `ChatGPT Controller.app`.
+**Install the public v0.1.0 release with Homebrew:**
 
-**Current release state (October 2026):** the GitHub repository is private and there is no verified published GitHub Release. A local `releases/ChatGPT-Controller-0.1.0-macos-arm64.zip` exists in the maintainer workspace but the `releases/` directory is Git-ignored; cloning this repository does **not** download that ZIP. Use the source-build instructions below until a release asset is published.
+```bash
+brew install --cask aungmyokyaw/tap/chatgpt-controller
+```
 
-> The currently built app is **not signed or notarized**. macOS may require you to approve opening a locally built or downloaded app in **System Settings → Privacy & Security**. Only run binaries obtained from a source you trust.
+**Direct download:** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.1.0), download `ChatGPT-Controller-v0.1.0-macos-arm64.zip`, verify the digest in `SHA256SUMS`, extract the archive, and move `ChatGPT Controller.app` into Applications.
+
+> Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. macOS may require approval in **System Settings → Privacy & Security** before first launch. Chrome and Playwright CLI are separate prerequisites for v0.1.0.
 
 **Build and launch from source** (with repository access):
 
