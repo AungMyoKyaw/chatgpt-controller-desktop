@@ -46,7 +46,7 @@
       <button class="icon-btn" type="button" onclick={toggleTheme} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
         {#if theme === "light"}<Moon size={18} />{:else}<Sun size={18} />{/if}
       </button>
-      <a class="button button-primary button-small" href={url("/status/")}>Release status <ArrowUpRight size={15}/></a>
+      <a class="button button-primary button-small" href={url("/download/")}>Install for macOS <ArrowUpRight size={15}/></a>
       <button class="icon-btn mobile-menu-btn" type="button" aria-expanded={menuOpen} aria-controls="mobile-nav" aria-label={menuOpen ? "Close menu" : "Open menu"} onclick={() => (menuOpen = !menuOpen)}>
         {#if menuOpen}<X size={19}/>{:else}<Menu size={19}/>{/if}
       </button>

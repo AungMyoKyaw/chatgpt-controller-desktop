@@ -179,6 +179,12 @@ code { font-size: .87em; }
 .markdown blockquote { margin: 24px 0; border-left: 2px solid var(--teal); padding: 2px 20px; background: var(--paper-soft); }
 .markdown table { display: block; overflow-x: auto; border-collapse: collapse; font-size: .85rem; }
 .markdown td, .markdown th { text-align: left; border: 1px solid var(--line); padding: 10px 15px; }
+.install-command { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: 100%; margin: 21px 0 12px; padding: 13px 14px 13px 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 3px 12px -10px rgba(13,36,42,.3); }
+.install-command code { min-width: 0; overflow-wrap: anywhere; font-size: .75rem; line-height: 1.8; color: var(--ink); }
+.install-command button { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 10px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-soft); color: var(--ink); font-size: .76rem; font-weight: 700; }
+.install-command button:hover { background: var(--soft-blue); }
+.install-command-large { margin-top: 18px; padding: 18px; }
+.install-command-large code { font-size: .84rem; }
 .search-field { width: 100%; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 9px; padding: 12px 14px; }
 .search-results { padding: 0; list-style: none; }
 .search-results a { display: block; border-top: 1px solid var(--line); padding: 16px 2px; }
@@ -225,6 +231,8 @@ code { font-size: .87em; }
   .hero-copy h1 { font-size: 2.83rem; }
   .hero-actions { align-items: stretch; flex-direction: column; }
   .hero-actions .button { width: 100%; }
+  .install-command { align-items: stretch; flex-direction: column; }
+  .install-command button { align-self: flex-start; }
   .code-pre { font-size: .7rem; padding: 16px; }
   .footer-links { gap: 12px 17px; }
 }

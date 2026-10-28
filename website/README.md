@@ -32,10 +32,10 @@ Workflow: `../.github/workflows/website-pages.yml`.
 
 - Builds and checks on relevant PRs and pushes to `master`.
 - Uploads/deploys **only when the repository is public**, never from a pull request.
-- Also listens for GitHub's **public** event when the repository switches from private to public.
+- Also supports rebuilding after a repository visibility change; the repository is now public.
 - Does **not** change repository visibility or publish ChatGPT credentials.
-- Requires **Settings → Pages → Build and deployment → Source → GitHub Actions**. Depending on GitHub plan, this option may not be available while the repository is private. If Pages is disabled when the repo goes public, enable GitHub Actions as the Pages source, then re-run the workflow from Actions → Website · checks and GitHub Pages (or push a website change). Visibility change alone does not guarantee that GitHub initializes Pages.
-- Target URL after deployment: `https://aungmyokyaw.github.io/chatgpt-controller-desktop/`.
+- GitHub Pages is enabled with **Settings → Pages → Build and deployment → Source → GitHub Actions**. If deployment fails, inspect Actions → Website · checks and GitHub Pages, then re-run the failed workflow.
+- Live URL: `https://aungmyokyaw.github.io/chatgpt-controller-desktop/`.
 
 If adding a custom domain later, update `SITE_BASE_PATH` to an empty string and the canonical URL in `src/lib/site.ts`, then configure DNS and Pages' Custom domain setting.
 
@@ -46,12 +46,12 @@ If adding a custom domain later, update `SITE_BASE_PATH` to an empty string and 
 - `scripts/build-search.mjs` creates a privacy-friendly static search index from those Markdown files. Search never needs a backend.
 - Screenshots are derived from the original app at `../docs/screenshots`, optimized for web delivery.
 - `design/concepts.md` records the three design directions and the selected one.
-- No fake ratings, customers, release download, or product claims.
+- No fake ratings, customers, or product claims; download links must target verified published release assets.
 - Do not embed the local controller key, browser cookies, tokens, or credentials in the public site.
 
 ### Release switch
 
-Before adding a download CTA, verify a published GitHub Release and its public URL. Until then, keep the website status as pre-release. The GitHub source repository is not yet public.
+The repository is public, and the v0.1.0 release is published. The website links to the verified GitHub release and offers the Homebrew cask command `brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. Keep future release links and status synchronized with published GitHub release assets.
 
 ### Status updating
 

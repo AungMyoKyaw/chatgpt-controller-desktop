@@ -2,7 +2,7 @@
 
 ChatGPT Controller gives a local script access to a **browser-backed HTTP interface** for a ChatGPT session you sign into yourself.
 
-> This is an independent browser automation tool, **not** the official OpenAI API. The repository is currently private and no public download has been verified.
+> This is an independent browser automation tool, **not** the official OpenAI API. Source and the v0.1.0 ARM64 release are public.
 
 ## What you need
 
@@ -11,7 +11,13 @@ ChatGPT Controller gives a local script access to a **browser-backed HTTP interf
 - Playwright CLI installed locally.
 - Your own ChatGPT account and access to the desktop application.
 
-For detailed build prerequisites, see the [installation guide](../installation/).
+Install the application with Homebrew:
+
+```bash
+brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller
+```
+
+Then install Playwright CLI separately (`bun add -g @playwright/cli`). For alternative downloads and build prerequisites, see the [installation guide](../installation/).
 
 ## Connect in three steps
 

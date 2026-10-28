@@ -44,4 +44,4 @@ Inspect Chrome **before repeating** a request. A timeout may occur even if the o
 
 ## GitHub Pages website is not live
 
-For the marketing website, GitHub Pages is expected only after public release readiness and enabling **Settings → Pages → Source: GitHub Actions**. The repository is private during preparation, and GitHub Free does not publish Pages from private repositories.
+The public website is hosted at [ChatGPT Controller on GitHub Pages](https://aungmyokyaw.github.io/chatgpt-controller-desktop/). If Pages fails to update after a website change, inspect the **Website · checks and GitHub Pages** workflow under GitHub Actions and verify **Settings → Pages → Source: GitHub Actions** is still enabled.

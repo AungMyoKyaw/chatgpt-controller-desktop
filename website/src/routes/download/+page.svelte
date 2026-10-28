@@ -1,18 +1,56 @@
 <script lang="ts">
-  import { ArrowRight, ArrowUpRight, CircleAlert, Laptop2 } from "@lucide/svelte";
-  import { repo, url, baseUrl } from "$lib/site";
+  import { ArrowRight, ArrowUpRight, CheckCircle2, Copy, Download } from "@lucide/svelte";
+  import { baseUrl, brewInstall, releaseUrl, url } from "$lib/site";
+
+  let copied = $state(false);
+  async function copyInstall() {
+    try {
+      await navigator.clipboard.writeText(brewInstall);
+      copied = true;
+      window.setTimeout(() => (copied = false), 2000);
+    } catch {
+      copied = false;
+    }
+  }
 </script>
+
 <svelte:head>
   <title>Download · ChatGPT Controller</title>
-  <meta name="description" content="Check distribution status, macOS requirements, and source-build instructions for ChatGPT Controller." />
+  <meta name="description" content="Install ChatGPT Controller v0.1.0 with Homebrew or download the verified macOS Apple Silicon release." />
   <link rel="canonical" href={baseUrl + "/download/"} />
 </svelte:head>
+
 <div class="constrained">
-  <section class="content-hero"><h1>Built for your Mac.</h1><p class="lede">A macOS Apple Silicon desktop utility with a browser-backed local API. Public release files are not yet verified.</p></section>
-  <div class="info-strip" style="margin-bottom:31px"><strong><span class="dot" style="display:inline-block;margin-right:8px;background:#b88135"></span> Distribution status: pre-release</strong><p>No published downloadable GitHub Release is currently verified. We are not presenting the local maintainer build as a public download.</p></div>
-  <h2 style="font-size:1.8rem;margin-top:40px">Requirements</h2>
-  <div class="detail"><h3>macOS Apple Silicon</h3><p>The documented build target is ARM64. Intel macOS, Windows and Linux are not supported release targets.</p></div>
-  <div class="detail"><h3>Google Chrome</h3><p>The controller opens a dedicated Chrome profile for user-controlled sign-in.</p></div>
-  <div class="detail"><h3>Playwright CLI</h3><p>The browser-driving dependency is not bundled in the current release candidate.</p></div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:38px 0 88px"><a href={url("/status/")} class="button button-primary">Follow release status <ArrowRight size={16}/></a><a href={url("/docs/v1/installation/")} class="button button-outline">Source build guide <ArrowUpRight size={16}/></a></div>
+  <section class="content-hero">
+    <p class="eyebrow">v0.1.0 · macOS Apple Silicon</p>
+    <h1>Install ChatGPT Controller.</h1>
+    <p class="lede">A native control center for a ChatGPT browser you sign into yourself. Install the app with Homebrew or download the published release.</p>
+  </section>
+
+  <div class="info-strip" style="margin-bottom:31px">
+    <strong><CheckCircle2 size={18} style="display:inline;vertical-align:middle;margin-right:8px;color:var(--teal)"/> Public release available</strong>
+    <p>Version 0.1.0 is published on GitHub and distributed through the AungMyoKyaw Homebrew tap. ARM64 only; no notarization.</p>
+  </div>
+
+  <h2 style="font-size:1.8rem;margin-top:38px">Install with Homebrew</h2>
+  <p>The recommended method. Homebrew verifies the exact release checksum before installing the app.</p>
+  <div class="install-command install-command-large">
+    <code>{brewInstall}</code>
+    <button type="button" onclick={copyInstall} aria-label="Copy Homebrew install command"><Copy size={16}/>{copied ? "Copied ✓" : "Copy"}</button>
+  </div>
+  <p class="muted" style="margin-top:16px">Already installed? Update with <code>brew upgrade --cask AungMyoKyaw/homebrew-tap/chatgpt-controller</code>.</p>
+
+  <h2 style="font-size:1.8rem;margin-top:45px">Direct download</h2>
+  <p>Prefer not to use Homebrew? Download the ARM64 ZIP and the SHA-256 checksums from GitHub. Extract and move <strong>ChatGPT Controller.app</strong> to Applications.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0 42px">
+    <a class="button button-primary" href={releaseUrl} target="_blank" rel="noopener noreferrer"><Download size={16}/> GitHub Release v0.1.0 <ArrowUpRight size={16}/></a>
+    <a class="button button-outline" href={url("/docs/v1/installation/")}>Installation guide <ArrowRight size={16}/></a>
+  </div>
+
+  <h2 style="font-size:1.8rem;margin-top:45px">Requirements</h2>
+  <div class="detail"><h3>Apple Silicon Mac</h3><p>The release archive targets ARM64. Intel macOS, Windows, and Linux packages are not provided.</p></div>
+  <div class="detail"><h3>Google Chrome</h3><p>Install Chrome locally. The controller opens a dedicated visible browser profile for you to sign in.</p></div>
+  <div class="detail"><h3>Playwright CLI</h3><p>Version 0.1.0 requires Playwright CLI separately. Install it with <code>bun add -g @playwright/cli</code> and check <code>playwright-cli --help</code>.</p></div>
+  <div class="detail"><h3>macOS signing</h3><p>The app uses ad-hoc signing, not Apple Developer ID signing or notarization. If macOS blocks the first launch, approve it in System Settings → Privacy &amp; Security.</p></div>
+  <p style="margin:36px 0 90px" class="muted">Independent, unofficial browser automation software. Not an OpenAI product or the official OpenAI API.</p>
 </div>

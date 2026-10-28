@@ -1,6 +1,8 @@
 import { base } from "$app/paths";
 
 export const repo = "https://github.com/AungMyoKyaw/chatgpt-controller-desktop";
+export const releaseUrl = `${repo}/releases/tag/v0.1.0`;
+export const brewInstall = "brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller";
 export const baseUrl = "https://aungmyokyaw.github.io/chatgpt-controller-desktop";
 export const nav = [
   { title: "Features", href: "/features/" },

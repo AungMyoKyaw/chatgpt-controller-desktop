@@ -1,9 +1,20 @@
 <script lang="ts">
   import { ArrowRight, ArrowUpRight, Check, CheckCircle2, Code2, Fingerprint, Laptop2, Layers, LockKeyhole, Monitor, ShieldCheck, Terminal, Workflow } from "@lucide/svelte";
-  import { repo, url, baseUrl } from "$lib/site";
+  import { repo, url, baseUrl, brewInstall, releaseUrl } from "$lib/site";
 
   let active = $state<"curl" | "typescript" | "python">("curl");
   let copied = $state(false);
+  let installCopied = $state(false);
+
+  async function copyInstall() {
+    try {
+      await navigator.clipboard.writeText(brewInstall);
+      installCopied = true;
+      window.setTimeout(() => (installCopied = false), 2000);
+    } catch {
+      installCopied = false;
+    }
+  }
 
   const snippets = {
     curl: `curl http://127.0.0.1:8791/v1/conversations \\
@@ -44,14 +55,18 @@ print(response.json())`,
   <div class="container">
     <div class="hero-inner">
       <div class="hero-copy">
-        <a class="status-pill" href={url("/status/")}><span class="dot"></span> Independent macOS project · In development <ArrowUpRight size={14}/></a>
+        <a class="status-pill" href={url("/status/")}><span class="dot"></span> Independent macOS project · v0.1.0 available <ArrowUpRight size={14}/></a>
         <h1>Your browser.<br/><span class="accent">Your local API.</span></h1>
         <p class="lede">Build on top of your own signed-in ChatGPT browser with a private localhost interface. No hosted middleman. Just your Mac, your browser, and your tools.</p>
         <div class="hero-actions">
-          <a class="button button-primary" href={url("/how-it-works/")}>See how it works <ArrowRight size={17}/></a>
+          <a class="button button-primary" href={url("/download/")}>Install for macOS <ArrowRight size={17}/></a>
           <a class="button button-outline" href={url("/docs/v1/quick-start/")}>Read the docs <Code2 size={17}/></a>
         </div>
-        <p class="hero-note">Native for macOS Apple Silicon. Chrome and Playwright CLI required.</p>
+        <div class="install-command" aria-label="Homebrew install command">
+          <code>{brewInstall}</code>
+          <button type="button" onclick={copyInstall} aria-label="Copy Homebrew install command">{installCopied ? "Copied ✓" : "Copy"}</button>
+        </div>
+        <p class="hero-note">Available for Apple Silicon · Chrome and Playwright CLI required · <a href={releaseUrl} target="_blank" rel="noopener noreferrer">v0.1.0 on GitHub ↗</a></p>
       </div>
       <div class="hero-visual">
         <div class="app-window">
@@ -139,10 +154,10 @@ print(response.json())`,
   <div class="container">
     <div class="cta-band">
       <div>
-        <h2>See where the project stands.</h2>
-        <p>The project is in active development. Public distribution is not yet verified; documentation and release criteria are published transparently.</p>
+        <h2>Install ChatGPT Controller on your Mac.</h2>
+        <p>Version 0.1.0 is available as a verified GitHub Release and Homebrew cask. Sign in through your own Chrome browser and connect your tools locally.</p>
       </div>
-      <a href={url("/status/")} class="button button-primary">Release status <ArrowRight size={17}/></a>
+      <a href={url("/download/")} class="button button-primary">Installation guide <ArrowRight size={17}/></a>
     </div>
   </div>
 </section>

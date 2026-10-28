@@ -1,12 +1,22 @@
 # Installation
 
-The currently documented platform is **macOS Apple Silicon**. This guide covers source builds while public downloadable releases remain unverified.
+ChatGPT Controller **v0.1.0** is publicly available for **macOS Apple Silicon (ARM64)** through the Homebrew tap or [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.1.0).
+
+## Install with Homebrew (recommended)
+
+```bash
+brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller
+```
+
+To upgrade later, run `brew upgrade --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. To uninstall, run `brew uninstall --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. An explicit `--zap` also removes app-owned local settings and the dedicated browser profile.
+
+Alternatively, download the `ChatGPT-Controller-v0.1.0-macos-arm64.zip` archive from the release, verify its `SHA256SUMS`, extract it, and move **ChatGPT Controller.app** into Applications.
 
 ## Requirements
 
 - macOS on ARM64/Apple Silicon.
 - Google Chrome installed locally.
-- [Bun](https://bun.sh/), Rust toolchain and Apple Command Line Tools for a source build.
+- [Bun](https://bun.sh/), Rust toolchain and Apple Command Line Tools **only for source builds**.
 - An installed Playwright CLI: the current v0.1.0 build **does not bundle it**.
 
 Install Playwright CLI:
@@ -18,7 +28,7 @@ playwright-cli --help
 
 ## Source checkout
 
-The repository is private at present. The commands below are usable after access is granted or the repository is made public.
+The source repository is public. For a development checkout:
 
 ```bash
 git clone git@github.com:AungMyoKyaw/chatgpt-controller-desktop.git
@@ -38,7 +48,7 @@ make build
 open "src-tauri/target/release/bundle/macos/ChatGPT Controller.app"
 ```
 
-The current build is not verified as signed and notarized. Depending on macOS settings, a locally built application may require manual approval in **System Settings → Privacy & Security**.
+Published v0.1.0 builds use ad-hoc signing, **not Developer ID signing or Apple notarization**. Depending on macOS settings, a downloaded application may require manual approval in **System Settings → Privacy & Security**.
 
 ## Connect
 
