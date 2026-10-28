@@ -10,6 +10,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 /src-tauri/bin/controller
 /src-tauri/bin/playwright-cli-bundled
+/native-controller/target/
 /src-tauri/.playwright-cli/
 /src-tauri/target/
 /samples/relay/node_modules/

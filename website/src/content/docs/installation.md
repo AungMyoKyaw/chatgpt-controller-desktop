@@ -37,7 +37,7 @@ make install
 make dev
 ```
 
-The development command builds the Bun sidecar and launches the native Tauri application.
+The development command compiles the native Rust controller sidecar and launches the Tauri application. Bun is required to build from source, but no Bun runtime is distributed inside the finished app.
 
 ## Build a macOS app
 

@@ -10,7 +10,7 @@ the [Homebrew tap](https://github.com/AungMyoKyaw/homebrew-tap).
   tooling, frontend build, Rust formatting, and Rust tests.
 - `.github/workflows/release.yml`: run on pushed `vX.Y.Z` tags. Also supports
   a **manual build-only** run from Actions (does not publish). The workflow
-  validates source; compiles the Tauri and Bun sidecar natively on a macOS ARM64
+  validates source; compiles the Tauri application and native Rust controller on a macOS ARM64
   runner; ad-hoc signs the app and sidecar; verifies the bundle; creates a ZIP
   and `SHA256SUMS`; uploads a build artifact; and publishes a GitHub Release.
 - The release job makes a **draft** first and publishes it only after uploading
@@ -50,7 +50,7 @@ bun install --frozen-lockfile
 bun run check
 bun test controller
 node --test tests/release-scripts.test.mjs
-node scripts/verify-release-version.mjs v0.1.0
+node scripts/verify-release-version.mjs v0.2.0
 actionlint .github/workflows/ci.yml .github/workflows/release.yml
 ```
 
@@ -58,13 +58,13 @@ Create and push the annotated release tag **only after the matching commit is
 on master**:
 
 ```bash
-git tag -a v0.1.0 -m "ChatGPT Controller v0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "ChatGPT Controller v0.2.0"
+git push origin v0.2.0
 ```
 
 Follow the run on GitHub Actions and confirm:
 
-- `ChatGPT-Controller-v0.1.0-macos-arm64.zip` exists in the public release.
+- `ChatGPT-Controller-v0.2.0-macos-arm64.zip` exists in the public release.
 - `SHA256SUMS` matches the downloaded ZIP.
 - The generated Homebrew cask references that tag and exact hash.
 - `brew audit --cask aungmyokyaw/tap/chatgpt-controller`, and an actual
@@ -76,9 +76,11 @@ Actions artifact but does not create a GitHub Release.
 
 ## Runtime / security
 
-The current app uses an isolated Chrome profile and a localhost key. Google
+The v0.2.0 controller runs as a small, independent Rust executable bundled
+inside the Tauri app instead of a compiled Bun runtime. Bun remains a build-time
+frontend/tooling dependency. The app uses an isolated Chrome profile and a localhost key. Google
 Chrome and the `@playwright/cli` command are **external requirements** in
-v0.1.0. No user session or credential is packaged into the release.
+v0.2.0. No user session or credential is packaged into the release.
 
 The ZIP is ad-hoc signed, not Apple Developer ID signed or notarized. The
 Homebrew cask runs `/usr/bin/xattr -dr com.apple.quarantine` on only the
