@@ -42,7 +42,7 @@ a { color: inherit; text-decoration: none; text-underline-offset: 4px; }
 a:hover { color: var(--blue); }
 button, input { font: inherit; }
 button { cursor: pointer; }
-img { max-width: 100%; display: block; }
+img { max-width: 100%; height: auto; display: block; }
 ::selection { background: var(--blue); color: #fff; }
 :focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; border-radius: 3px; }
 h1, h2, h3, h4, p { margin-top: 0; }
@@ -99,7 +99,7 @@ code { font-size: .87em; }
 .hero-visual { position: relative; margin-left: 35px; }
 .hero-visual::before { content: ""; position: absolute; inset: 1% -20% -15% 13%; border-radius: 58% 42% 30% 60%; background: radial-gradient(ellipse, rgba(49,91,212,.125), rgba(8,127,105,.04) 48%, transparent 76%); filter: blur(5px); }
 .app-window { position: relative; background: #f3f6f4; border: 1px solid #b9c6c0; box-shadow: 0 36px 80px -34px rgba(20,45,55,.48), 0 9px 28px -16px rgba(20,45,55,.3); border-radius: 13px; overflow: hidden; transform: rotate(-1deg); }
-.app-window img { width: 100%; }
+.app-window img { width: 100%; height: auto; }
 .window-caption { position: absolute; bottom: -37px; left: 8px; font-size: .71rem; color: var(--muted); }
 .hero-bottom { margin-top: 74px; border-top: 1px solid var(--line); padding-top: 25px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .hero-bottom span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: .77rem; font-weight: 650; }
@@ -133,6 +133,7 @@ code { font-size: .87em; }
 .feature-icon svg { width: 21px; height: 21px; }
 .showcase { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0,1fr); align-items: center; gap: 64px; }
 .showcase-image { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); background: #fff; }
+.showcase-image img { width: 100%; height: auto; }
 .showcase h2 { margin-bottom: 23px; }
 .showcase-list { list-style: none; padding: 0; margin: 28px 0; }
 .showcase-list li { margin-bottom: 14px; display: flex; align-items: start; gap: 12px; font-size: .91rem; line-height: 1.6; }

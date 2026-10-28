@@ -25,7 +25,7 @@
   <meta name="description" content="ChatGPT Controller is an independent, local-first macOS utility that connects a signed-in ChatGPT browser to a private localhost API. In development." />
   <meta property="og:site_name" content="ChatGPT Controller" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content={`${baseUrl}/images/getting-started-connected.jpg`} />
+  <meta property="og:image" content={`${baseUrl}/images/getting-started-connected.webp`} />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="robots" content="index,follow" />
 </svelte:head>

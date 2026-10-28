@@ -23,7 +23,7 @@
     <div class="detail"><h3>Client integration examples</h3><p>Use curl or build scripts and native clients. The repository includes Relay as a separate example application.</p></div>
   </div>
   <div class="showcase" style="padding-bottom:110px">
-    <div class="showcase-image"><img src={url("/images/api-access.jpg")} alt="Application API access screen displaying local endpoint and protected controller key" width="1332" height="907" loading="lazy" /></div>
+    <div class="showcase-image"><img src={url("/images/api-access.webp")} alt="Application API access screen displaying local endpoint and protected controller key" width="1332" height="907" loading="lazy" /></div>
     <div><h2>Designed to keep the boundaries visible.</h2><p class="lede">No embedded sign-in form, no export of ChatGPT bearer tokens, and no hidden promises about browser automation reliability.</p><a class="button button-primary" href={url("/docs/v1/security/")}>Read the security model <ArrowRight size={16}/></a></div>
   </div>
   <div class="cta-band" style="margin-bottom:100px"><div><h2>Build locally, understand every hop.</h2><p>Walk through browser setup, the controller and your first request.</p></div><a class="button button-primary" href={url("/how-it-works/")}>How it works <ArrowRight size={16}/></a></div>

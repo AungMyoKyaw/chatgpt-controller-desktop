@@ -55,7 +55,7 @@ print(response.json())`,
       </div>
       <div class="hero-visual">
         <div class="app-window">
-          <img src={url("/images/getting-started-connected.jpg")} alt="Real ChatGPT Controller desktop app showing browser connection steps and status" width="1332" height="907" fetchpriority="high" />
+          <img src={url("/images/getting-started-connected.webp")} alt="Real ChatGPT Controller desktop app showing browser connection steps and status" width="1332" height="907" fetchpriority="high" />
         </div>
         <span class="window-caption">Actual desktop application · connected setup</span>
       </div>
@@ -120,7 +120,7 @@ print(response.json())`,
 
 <section class="section" style="padding-top:20px">
   <div class="container showcase">
-    <div class="showcase-image"><img src={url("/images/api-explorer.jpg")} alt="Real API explorer in the ChatGPT Controller desktop app" width="1332" height="907" loading="lazy" /></div>
+    <div class="showcase-image"><img src={url("/images/api-explorer.webp")} alt="Real API explorer in the ChatGPT Controller desktop app" width="1332" height="907" loading="lazy" /></div>
     <div>
       <h2>A practical tool, not a promise.</h2>
       <p class="lede">Inspect your connection, explore documented endpoints and make deliberate test requests directly in the app.</p>

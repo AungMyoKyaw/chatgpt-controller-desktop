@@ -30,7 +30,7 @@
     </div>
   </div>
   <div class="showcase" style="padding-bottom:90px">
-    <div class="showcase-image"><img src={url("/images/getting-started-connected.jpg")} alt="ChatGPT Controller getting started screen, showing the browser sign-in and local service steps" width="1332" height="907" loading="lazy" /></div>
+    <div class="showcase-image"><img src={url("/images/getting-started-connected.webp")} alt="ChatGPT Controller getting started screen, showing the browser sign-in and local service steps" width="1332" height="907" loading="lazy" /></div>
     <div><h2>Real UI. Clear states.</h2><p class="lede">Setup, API access, explorer and sample applications are all accessible in the native desktop UI.</p><p class="disclaimer">Browser automation is interface-dependent, not an official ChatGPT API. The controller cannot guarantee every conversation is loaded or that external UI changes will not affect actions.</p><a class="button button-primary" href={url("/docs/v1/quick-start/")}>Read the setup guide <ArrowRight size={16}/></a></div>
   </div>
 </div>
