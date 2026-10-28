@@ -51,7 +51,7 @@ If adding a custom domain later, update `SITE_BASE_PATH` to an empty string and 
 
 ### Release switch
 
-The repository is public, and the v0.1.0 release is published. The website links to the verified GitHub release and offers the Homebrew cask command `brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. Keep future release links and status synchronized with published GitHub release assets.
+The repository is public, and the v0.2.0 release is published. The website links to the verified GitHub release and offers the Homebrew cask command `brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. Keep future release links and status synchronized with published GitHub release assets.
 
 ### Status updating
 

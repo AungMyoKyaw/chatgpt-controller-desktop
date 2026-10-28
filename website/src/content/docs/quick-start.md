@@ -2,7 +2,7 @@
 
 ChatGPT Controller gives a local script access to a **browser-backed HTTP interface** for a ChatGPT session you sign into yourself.
 
-> This is an independent browser automation tool, **not** the official OpenAI API. Source and the v0.1.0 ARM64 release are public.
+> This is an independent browser automation tool, **not** the official OpenAI API. Source and the v0.2.0 ARM64 release are public.
 
 ## What you need
 

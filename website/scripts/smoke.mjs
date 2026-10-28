@@ -15,7 +15,7 @@ for (const page of installPages) {
 }
 for (const page of ["download/index.html", "status/index.html"]) {
   const html = await readFile(new URL(page, root), "utf8");
-  if (!html.includes("v0.1.0") || html.includes("no public GitHub Release") || html.includes("Pre-release")) {
+  if (!html.includes("v0.2.0") || html.includes("no public GitHub Release") || html.includes("Pre-release")) {
     throw new Error(`Release status is inaccurate in ${page}`);
   }
 }

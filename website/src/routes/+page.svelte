@@ -55,7 +55,7 @@ print(response.json())`,
   <div class="container">
     <div class="hero-inner">
       <div class="hero-copy">
-        <a class="status-pill" href={url("/status/")}><span class="dot"></span> Independent macOS project · v0.1.0 available <ArrowUpRight size={14}/></a>
+        <a class="status-pill" href={url("/status/")}><span class="dot"></span> Independent macOS project · v0.2.0 available <ArrowUpRight size={14}/></a>
         <h1>Your browser.<br/><span class="accent">Your local API.</span></h1>
         <p class="lede">Build on top of your own signed-in ChatGPT browser with a private localhost interface. No hosted middleman. Just your Mac, your browser, and your tools.</p>
         <div class="hero-actions">
@@ -66,7 +66,7 @@ print(response.json())`,
           <code>{brewInstall}</code>
           <button type="button" onclick={copyInstall} aria-label="Copy Homebrew install command">{installCopied ? "Copied ✓" : "Copy"}</button>
         </div>
-        <p class="hero-note">Available for Apple Silicon · Chrome and Playwright CLI required · <a href={releaseUrl} target="_blank" rel="noopener noreferrer">v0.1.0 on GitHub ↗</a></p>
+        <p class="hero-note">Available for Apple Silicon · Chrome and Playwright CLI required · <a href={releaseUrl} target="_blank" rel="noopener noreferrer">v0.2.0 on GitHub ↗</a></p>
       </div>
       <div class="hero-visual">
         <div class="app-window">
@@ -155,7 +155,7 @@ print(response.json())`,
     <div class="cta-band">
       <div>
         <h2>Install ChatGPT Controller on your Mac.</h2>
-        <p>Version 0.1.0 is available as a verified GitHub Release and Homebrew cask. Sign in through your own Chrome browser and connect your tools locally.</p>
+        <p>Version 0.2.0 is available as a verified GitHub Release and Homebrew cask. Now with a lightweight native Rust controller and an approximately 2.8 MB download. Sign in through your own Chrome browser and connect your tools locally.</p>
       </div>
       <a href={url("/download/")} class="button button-primary">Installation guide <ArrowRight size={17}/></a>
     </div>

@@ -6,9 +6,9 @@
     ["Can another computer connect to the API?", "The HTTP service binds to 127.0.0.1:8791. It is intentionally a localhost service, not a network-exposed server."],
     ["Does it bypass my ChatGPT plan's limits?", "No. The tool does not provide unlimited access or bypass account limits. Browser behavior and ChatGPT interface changes can affect automation."],
     ["Can it access every conversation in my account?", "No. Its documented listing behavior is scoped to conversations currently loaded in the sidebar, and actions depend on accessible browser state."],
-    ["How do I install ChatGPT Controller?", "On an Apple Silicon Mac, run brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller. Version 0.1.0 is also available from the public GitHub Releases page. Install Google Chrome and Playwright CLI separately."],
+    ["How do I install ChatGPT Controller?", "On an Apple Silicon Mac, run brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller. Version 0.2.0 is also available from the public GitHub Releases page. Install Google Chrome and Playwright CLI separately."],
     ["Which operating systems are supported?", "The documented build target is macOS on Apple Silicon (ARM64). Chrome and Playwright CLI must also be installed."],
-    ["Is the project free and open source?", "Yes. The source repository is public under AGPL-3.0-or-later. The v0.1.0 macOS ARM64 release is published on GitHub."],
+    ["Is the project free and open source?", "Yes. The source repository is public under AGPL-3.0-or-later. The v0.2.0 macOS ARM64 release is published on GitHub."],
     ["What happens if the browser changes?", "This is browser automation. Changes to the ChatGPT interface or loading behavior can require controller updates. No availability guarantee is made."],
     ["Can I use the controller in a custom app?", "Yes. It exposes documented localhost HTTP routes. Clients authenticate with a separate X-Bridge-Key and communicate with the local service."],
   ];

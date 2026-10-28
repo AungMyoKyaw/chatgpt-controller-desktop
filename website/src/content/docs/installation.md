@@ -1,6 +1,6 @@
 # Installation
 
-ChatGPT Controller **v0.1.0** is publicly available for **macOS Apple Silicon (ARM64)** through the Homebrew tap or [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.1.0).
+ChatGPT Controller **v0.2.0** is publicly available for **macOS Apple Silicon (ARM64)** through the Homebrew tap or [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.2.0).
 
 ## Install with Homebrew (recommended)
 
@@ -10,14 +10,14 @@ brew install --cask AungMyoKyaw/homebrew-tap/chatgpt-controller
 
 To upgrade later, run `brew upgrade --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. To uninstall, run `brew uninstall --cask AungMyoKyaw/homebrew-tap/chatgpt-controller`. An explicit `--zap` also removes app-owned local settings and the dedicated browser profile.
 
-Alternatively, download the `ChatGPT-Controller-v0.1.0-macos-arm64.zip` archive from the release, verify its `SHA256SUMS`, extract it, and move **ChatGPT Controller.app** into Applications.
+Alternatively, download the `ChatGPT-Controller-v0.2.0-macos-arm64.zip` archive from the release, verify its `SHA256SUMS`, extract it, and move **ChatGPT Controller.app** into Applications.
 
 ## Requirements
 
 - macOS on ARM64/Apple Silicon.
 - Google Chrome installed locally.
 - [Bun](https://bun.sh/), Rust toolchain and Apple Command Line Tools **only for source builds**.
-- An installed Playwright CLI: the current v0.1.0 build **does not bundle it**.
+- An installed Playwright CLI: the current v0.2.0 build **does not bundle it**.
 
 Install Playwright CLI:
 
@@ -48,7 +48,7 @@ make build
 open "src-tauri/target/release/bundle/macos/ChatGPT Controller.app"
 ```
 
-Published v0.1.0 builds use ad-hoc signing, **not Developer ID signing or Apple notarization**. The Homebrew cask runs a nonfatal, recursive `xattr` postflight step to remove `com.apple.quarantine` from only the installed app bundle. Direct downloads, or systems where the postflight step fails, may require manual approval in **System Settings → Privacy & Security**.
+Published v0.2.0 builds use ad-hoc signing, **not Developer ID signing or Apple notarization**. The Homebrew cask runs a nonfatal, recursive `xattr` postflight step to remove `com.apple.quarantine` from only the installed app bundle. Direct downloads, or systems where the postflight step fails, may require manual approval in **System Settings → Privacy & Security**.
 
 ## Connect
 
