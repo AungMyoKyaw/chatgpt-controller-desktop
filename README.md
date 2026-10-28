@@ -263,7 +263,7 @@ For the rationale behind the light-first **Quiet Control Room** design, see [DES
 
 - [Controller CI](.github/workflows/ci.yml) checks source, tests, and Rust on every pull request and push to `master`.
 - [macOS ARM64 Release](.github/workflows/release.yml) builds an ad-hoc signed `.app` ZIP with SHA-256 checksums. Manual workflow dispatch builds an artifact without publishing; an annotated `vX.Y.Z` tag publishes a release once the repository is public.
-- The release workflow can update the Homebrew tap automatically when the scoped `HOMEBREW_TAP_TOKEN` repository secret is configured.
+- The public Homebrew tap checks for releases on a schedule and automatically pins published checksums. An optional, scoped `HOMEBREW_TAP_TOKEN` enables immediate tap updates after publication.
 - See [Release engineering guide](docs/RELEASING.md) for setup, tagging, verification, and rollback.
 
 ## Troubleshooting

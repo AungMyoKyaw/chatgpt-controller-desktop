@@ -16,19 +16,22 @@ the [Homebrew tap](https://github.com/AungMyoKyaw/homebrew-tap).
 - The release job makes a **draft** first and publishes it only after uploading
   verified assets. The repository **must be public** before publishing a tagged
   release: the Homebrew download URL cannot work for private GitHub Releases.
-- After publishing, the workflow can update
-  `AungMyoKyaw/homebrew-tap/Casks/chatgpt-controller.rb` automatically.
+- After publishing, the controller workflow can update the Homebrew cask immediately
+  with a scoped token. Independently, the **public Homebrew tap** has a scheduled
+  GitHub Action (`chatgpt-controller-sync.yml`) that checks for the latest public
+  release every two hours and updates the exact SHA-256 pin using its own token.
+  This fallback requires **no cross-repository credential**.
 
 ## Initial setup
 
 1. Perform the public-source and Git-history secret review before making the
    controller repository public.
 2. Make `AungMyoKyaw/chatgpt-controller-desktop` public when approved.
-3. To permit automatic tap updates, add controller repository Actions secret
-   `HOMEBREW_TAP_TOKEN`: **fine-grained GitHub token** with Contents:
-   Read and Write for **only** `AungMyoKyaw/homebrew-tap`. Without this secret
-   the release still publishes, but the tap-update step emits a warning and
-   skips itself. Never commit the token or print its value.
+3. For **immediate** tap updates, optionally add controller repository Actions
+   secret `HOMEBREW_TAP_TOKEN`: a **fine-grained GitHub token** with Contents:
+   Read and Write for **only** `AungMyoKyaw/homebrew-tap`. Without this secret,
+   the public tap's scheduled sync will pick up the release (normally within
+   two hours, subject to GitHub Actions scheduling). Never commit a token.
 4. Confirm Actions are enabled and can publish releases through the workflow's
    job-scoped `contents: write` permission.
 
