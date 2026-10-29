@@ -31,6 +31,7 @@ jobs:
       - run: bun test tests/native-script-parity.test.mjs
       - run: node --test tests/release-scripts.test.mjs
       - run: bun run build
+      - run: node --test tests/webkit-scripts.test.mjs
 
   build:
     name: Build and package ARM64
@@ -54,10 +55,8 @@ jobs:
           test "$(uname -m)" = "arm64"
           rustc -vV
       - run: bun install --frozen-lockfile
-      - name: Build Tauri app and native Rust controller
+      - name: Build self-contained Tauri application
         run: bun run tauri build --bundles app --target aarch64-apple-darwin
-      - name: Verify native Rust API contract
-        run: node tests/native-controller-smoke.mjs
       - name: Package ad-hoc signed app with checksums
         run: bash scripts/package-macos-release.sh
       - name: Verify ZIP content and architecture

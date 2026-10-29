@@ -2,6 +2,24 @@ use serde_json::{Value, json};
 use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::process::Command;
+use tokio::sync::{mpsc, oneshot};
+
+pub struct WebkitJob {
+    pub operation: String,
+    pub target_path: Option<String>,
+    pub javascript: String,
+    pub reply: oneshot::Sender<Result<Value>>,
+}
+
+static WEBKIT_EXECUTOR: OnceLock<mpsc::UnboundedSender<WebkitJob>> = OnceLock::new();
+
+pub fn install_webkit_executor(sender: mpsc::UnboundedSender<WebkitJob>) -> bool {
+    WEBKIT_EXECUTOR.set(sender).is_ok()
+}
+
+pub fn webkit_enabled() -> bool {
+    WEBKIT_EXECUTOR.get().is_some()
+}
 
 pub type Result<T> = std::result::Result<T, (u16, String)>;
 pub fn error(status: u16, message: impl Into<String>) -> (u16, String) {
@@ -25,10 +43,18 @@ pub fn validate_id(id: &str) -> Result<String> {
 
 pub fn template(name: &str, replacements: &[(&str, String)]) -> Result<String> {
     static SCRIPTS: OnceLock<Value> = OnceLock::new();
-    let scripts = SCRIPTS.get_or_init(|| {
-        serde_json::from_str(include_str!("../playwright-scripts.json"))
-            .expect("Invalid packaged Playwright scripts")
-    });
+    static WEBKIT_SCRIPTS: OnceLock<Value> = OnceLock::new();
+    let scripts = if webkit_enabled() {
+        WEBKIT_SCRIPTS.get_or_init(|| {
+            serde_json::from_str(include_str!("../webkit-scripts.json"))
+                .expect("Invalid packaged WebKit scripts")
+        })
+    } else {
+        SCRIPTS.get_or_init(|| {
+            serde_json::from_str(include_str!("../playwright-scripts.json"))
+                .expect("Invalid packaged Playwright scripts")
+        })
+    };
     let mut code = scripts
         .get(name)
         .and_then(Value::as_str)
@@ -57,7 +83,29 @@ pub fn template(name: &str, replacements: &[(&str, String)]) -> Result<String> {
     Ok(code)
 }
 
+async fn run_webkit(code: String, operation: &str, target_path: Option<String>) -> Result<Value> {
+    let sender = WEBKIT_EXECUTOR
+        .get()
+        .ok_or_else(|| error(503, "Embedded WebKit unavailable"))?;
+    let (reply, receiver) = oneshot::channel();
+    sender
+        .send(WebkitJob {
+            operation: operation.to_owned(),
+            target_path,
+            javascript: code,
+            reply,
+        })
+        .map_err(|_| error(503, "Embedded WebKit transport unavailable"))?;
+    tokio::time::timeout(Duration::from_secs(125), receiver)
+        .await
+        .map_err(|_| error(504, "Embedded WebKit operation timed out"))?
+        .map_err(|_| error(503, "Embedded WebKit transport closed"))?
+}
+
 pub async fn run(code: &str, session: &str) -> Result<Value> {
+    if webkit_enabled() {
+        return run_webkit(code.to_owned(), "", None).await;
+    }
     let output = tokio::time::timeout(
         Duration::from_secs(125),
         Command::new("playwright-cli")
@@ -89,8 +137,34 @@ pub async fn run(code: &str, session: &str) -> Result<Value> {
         .ok_or_else(|| error(502, "No structured browser result was returned"))?;
     serde_json::from_str(result).map_err(|_| error(502, "Browser returned invalid JSON"))
 }
+pub async fn native_access_token() -> Result<Value> {
+    run_webkit(template("native_auth", &[])?, "native_auth", None).await
+}
+
 pub async fn execute(name: &str, replacements: &[(&str, String)], session: &str) -> Result<Value> {
-    run(&template(name, replacements)?, session).await
+    if webkit_enabled() {
+        if let Some(result) = crate::transport::try_native(name, replacements).await {
+            return Ok(result);
+        }
+    }
+    let script = template(name, replacements)?;
+    if webkit_enabled() {
+        let target_path = match name {
+            "chat" => replacements
+                .iter()
+                .find(|(key, _)| *key == "__PATH__")
+                .and_then(|(_, value)| serde_json::from_str::<Option<String>>(value).ok())
+                .flatten()
+                .or_else(|| Some("/".to_owned())),
+            "open" => replacements
+                .iter()
+                .find(|(key, _)| *key == "__ID__")
+                .map(|(_, id)| format!("/c/{id}")),
+            _ => None,
+        };
+        return run_webkit(script, name, target_path).await;
+    }
+    run(&script, session).await
 }
 
 pub fn make_status(
@@ -190,10 +264,14 @@ pub async fn status_batch(ids: &[String], session: &str) -> Vec<Value> {
                     None,
                 );
             }
-            let reason = if result.is_err() {
-                "browser_status_unavailable"
-            } else {
-                "missing_upstream_result"
+            let reason = match result.as_ref().err() {
+                Some((401, _)) => "login_required",
+                Some((503, msg)) if msg.contains("loading") => "browser_page_loading",
+                Some((503, _)) => "browser_unavailable",
+                Some((504, _)) => "browser_timeout",
+                Some((502, _)) => "browser_execution_failed",
+                Some(_) => "browser_transport_failed",
+                None => "missing_upstream_result",
             };
             make_status(
                 id,

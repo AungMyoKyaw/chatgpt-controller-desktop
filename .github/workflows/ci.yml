@@ -55,10 +55,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - name: Install dependencies and prepare Tauri sidecar resource
+      - name: Install dependencies
         run: |
           bun install --frozen-lockfile
-          bun run sidecar
       - name: Check Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: Rust tests and API contract smoke
@@ -66,4 +65,4 @@ jobs:
           cargo test --locked --manifest-path src-tauri/Cargo.toml
           cargo test --locked --manifest-path native-controller/Cargo.toml
           cargo fmt --manifest-path native-controller/Cargo.toml -- --check
-          node tests/native-controller-smoke.mjs
+          node --test tests/webkit-scripts.test.mjs

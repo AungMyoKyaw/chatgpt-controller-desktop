@@ -373,6 +373,7 @@ async fn status_pages(
 }
 fn route(path: &str, method: &Method) -> bool {
     path == "/health" && method == Method::GET
+        || path == "/v1/diagnostics" && method == Method::GET
         || path == "/v1/chat" && method == Method::POST
         || path == "/v1/chat/completions" && method == Method::POST
         || path == "/v1/conversations" && method == Method::GET
@@ -419,34 +420,26 @@ async fn handle(
         return reply(404, json!({"error":"Not found"}));
     }
     let query = uri.query().unwrap_or("");
-    let already_busy = state.busy.load(Ordering::SeqCst);
+    if path == "/v1/diagnostics" {
+        return output(browser::execute("diagnostics", &[], &state.session).await);
+    }
     if let Some(Err(err)) = status_route(&method, path) {
         return output(Err(err));
     }
     if let Some(Ok((action, Some(id)))) = status_route(&method, path) {
         if action == "status" {
-            if already_busy {
-                let active = state.active_chat.lock().unwrap().clone();
-                return output(Ok(busy_status(&id, active.as_deref())));
-            }
             return output(Ok(browser::status_batch(&[id], &state.session)
                 .await
                 .remove(0)));
         }
     }
-    if already_busy && path == "/v1/conversations/statuses" {
-        let result = async {
-            if method == Method::POST {
-                let data = request_body(&headers, &bytes)?;
-                status_pages(&state, Some(parse_ids(&data)?), 50, 0, true).await
-            } else {
-                let limit = number(query, "limit", 20, 50, 1)?;
-                let offset = number(query, "offset", 0, 1_000_000, 0)?;
-                status_pages(&state, None, limit, offset, true).await
-            }
-        }
-        .await;
-        return output(result);
+    // Read-only queries use an independent lane. A generating chat must not
+    // prevent upstream status checks or force a false "busy" response.
+    if path == "/v1/conversations/statuses"
+        || (method == Method::GET && path == "/v1/conversations")
+        || matches!(status_route(&method, path), Some(Ok((action, _))) if action == "read")
+    {
+        return output(process(&state, &method, path, query, &headers, &bytes).await);
     }
     if state
         .busy
@@ -556,7 +549,22 @@ async fn process(
         .await?;
         match result.get("error").and_then(Value::as_str) {
             Some("LOGIN_REQUIRED") => {
-                return Err(browser::error(401, "Log in to the Chrome profile manually"));
+                return Err(browser::error(
+                    401,
+                    "Sign in to ChatGPT in the embedded WebKit window",
+                ));
+            }
+            Some("NO_COMPOSER") => {
+                return Err(browser::error(
+                    503,
+                    "ChatGPT composer is not available in the embedded browser",
+                ));
+            }
+            Some("WRONG_CONVERSATION") => {
+                return Err(browser::error(
+                    409,
+                    "Embedded browser is on a different conversation",
+                ));
             }
             Some("NO_RESPONSE" | "RESPONSE_TIMEOUT") => {
                 return Err(browser::error(504, "ChatGPT did not finish responding"));

@@ -358,10 +358,10 @@
               <div class="step-content">
                 <div class="step-top">
                   <div>
-                    <h3>Sign in through Chrome</h3>
+                    <h3>Sign in through embedded WebKit</h3>
                     <p>
-                      Your account credentials stay in Chrome. The controller
-                      never sees your password.
+                      Sign in directly on chatgpt.com in the embedded macOS
+                      browser. The controller never sees your password.
                     </p>
                   </div>
                   <span class:done={authenticated} class="step-badge"
@@ -371,22 +371,18 @@
                 <div class="actions">
                   <button
                     class="primary"
-                    disabled={!!busy || !snapshot?.playwrightInstalled}
+                    disabled={!!busy}
                     onclick={() => void perform("login", launchBrowser)}
                   >
                     <Globe2 size={17} />{authenticated
                       ? "Open signed-in browser"
                       : "Open ChatGPT login"}<ArrowRight size={15} />
                   </button>
-                  {#if !snapshot?.playwrightInstalled}<span class="hint warn"
-                      >Install with <code>bun add -g @playwright/cli</code>,
-                      then refresh.</span
-                    >
-                  {:else if authenticated}<span class="hint positive"
-                      ><Check size={14} />Chrome is authenticated</span
+                  {#if authenticated}<span class="hint positive"
+                      ><Check size={14} />ChatGPT session is authenticated</span
                     >
                   {:else if snapshot?.browserOpen}<span class="hint"
-                      >Complete sign-in in Chrome, then refresh</span
+                      >Complete sign-in in the embedded browser, then refresh</span
                     >{/if}
                 </div>
               </div>
@@ -468,9 +464,9 @@
             <div>
               <strong>Private by design</strong>
               <p>
-                Browser cookies and bearer tokens never leave Chrome. Your
-                exported API key authorizes this local controller only.
-                ChatGPT's normal usage limits apply.
+                Your ChatGPT session stays in the embedded browser. The exported
+                API key authorizes only the local controller. ChatGPT's normal
+                usage limits apply.
               </p>
             </div>
           </div>
@@ -712,7 +708,7 @@
                 <span>1</span>
                 <p>
                   <strong>Complete controller setup</strong><small
-                    >Open Chrome, sign in, and start the API service.</small
+                    >Sign in through embedded WebKit and start the API service.</small
                   >
                 </p>
               </div>
@@ -773,7 +769,7 @@
               </div>
               <ArrowRight size={19} />
               <div>
-                <Globe2 size={22} /><strong>Signed-in Chrome</strong><small
+                <Globe2 size={22} /><strong>Embedded WebKit</strong><small
                   >chatgpt.com</small
                 >
               </div>

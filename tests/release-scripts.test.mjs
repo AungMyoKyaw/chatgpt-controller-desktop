@@ -13,6 +13,13 @@ const run = (script, args = []) =>
     cwd: root, encoding: "utf8",
   });
 
+test("macOS packager rejects a stale bundle and verifies its resource signature", () => {
+  const script = readFileSync(path.join(root, "scripts/package-macos-release.sh"), "utf8");
+  assert.match(script, /CFBundleShortVersionString/);
+  assert.ok(script.includes('"$actual_version" == "$VERSION"'));
+  assert.ok(script.includes("Contents/_CodeSignature/CodeResources"));
+});
+
 test("release version and license match three manifests", () => {
   const result = run("verify-release-version.mjs", [tag]);
   assert.equal(result.status, 0, result.stderr);

@@ -8,7 +8,7 @@
 
 A native macOS control center that exposes a private, authenticated HTTP interface to a ChatGPT session you open and sign in to yourself.
 
-[![Version](https://img.shields.io/badge/version-0.2.0-315BD4)](https://github.com/AungMyoKyaw/chatgpt-controller-desktop)
+[![Version](https://img.shields.io/badge/version-0.3.0--rc.5-315BD4)](https://github.com/AungMyoKyaw/chatgpt-controller-desktop)
 [![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-1B2B31)](#requirements)
 [![Tauri](https://img.shields.io/badge/Tauri-2-315BD4)](https://tauri.app/)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00)](https://svelte.dev/)
@@ -20,7 +20,7 @@ A native macOS control center that exposes a private, authenticated HTTP interfa
 </div>
 
 > [!IMPORTANT]
-> **Independent, unofficial project.** This is browser automation of a user-controlled ChatGPT session, **not** the official OpenAI API, an OpenAI product, or a way around ChatGPT subscription limits. The user signs in directly in a dedicated visible Chrome window. The application does not export ChatGPT cookies, passwords, or bearer tokens.
+> **Independent, unofficial project.** This is browser automation of a user-controlled ChatGPT session, **not** the official OpenAI API, an OpenAI product, or a way around ChatGPT subscription limits. Users sign in on chatgpt.com in the embedded macOS WebKit window. The app never collects passwords. Native HTTP uses temporary access tokens in backend process memory; they are not exposed to local API clients.
 
 ![ChatGPT Controller — Getting started, connected](docs/screenshots/getting-started-connected.png)
 
@@ -28,7 +28,7 @@ A native macOS control center that exposes a private, authenticated HTTP interfa
 
 ChatGPT Controller lets developers, AI engineers, and automation builders experiment with their **own signed-in ChatGPT browser** from local software—without embedding a login form, collecting browser session tokens, or making an external web service the middleman.
 
-The macOS app manages a locally packaged HTTP controller. A separately installed Playwright CLI drives a dedicated Chrome profile, while a controller-generated secret authenticates local clients. You can connect a script, CLI, or another native app, such as the included [Relay sample](samples/relay/).
+The macOS app hosts its Axum controller in-process and uses an isolated WKWebView for sign-in and browser fallback. Requests use the authenticated WebKit session by default. The experimental native Rust HTTP transport is opt-in with `CHATGPT_CONTROLLER_ENABLE_NATIVE_HTTP=1`. Chrome and Playwright CLI are no longer mandatory. You can connect a script, CLI, or another native app, such as the included [Relay sample](samples/relay/).
 
 **The important distinction:** clients talk to a browser-backed localhost bridge; they do **not** receive an official OpenAI API credential or direct access to the underlying ChatGPT network session.
 
@@ -36,7 +36,7 @@ The macOS app manages a locally packaged HTTP controller. A separately installed
 
 | Capability              | What is implemented                                                                                   |
 | ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| Guided setup            | Open a dedicated Chrome profile, sign in yourself, start the controller, and inspect connection state |
+| Guided setup            | Sign in through embedded WebKit, start the controller, and inspect connection state |
 | Native desktop utility  | Tauri 2 + Rust + Svelte 5 interface, light-first with dark-mode support                               |
 | Private local API       | HTTP on `127.0.0.1:8791` with a separate local `X-Bridge-Key`                                         |
 | Conversation access     | Create/continue chats in the browser; read messages via authenticated background requests             |
@@ -45,30 +45,25 @@ The macOS app manages a locally packaged HTTP controller. A separately installed
 | API explorer            | Probe the authenticated conversation endpoint and explicitly submit a test prompt                     |
 | External client example | Relay, a separate Tauri/Svelte/Rust desktop chat client                                               |
 | Process ownership       | Stop only a controller process launched by this app; do not terminate an externally managed service   |
-| Built-in checks         | Report browser dependency, browser sign-in, and controller availability                               |
+| Built-in checks         | Report WebKit sign-in and controller availability                               |
 
 The bridge serializes UI-changing browser operations. Read-only account discovery and bulk status monitoring use authenticated background requests, without opening or switching tabs. Account discovery is paginated and can fall back to loaded sidebar entries when upstream listing is unavailable. Chat send and explicit open remain browser UI operations, but skip reloading a matching open conversation; response detection uses the visible generation-stop state instead of a fixed four-second delay. ChatGPT model generation latency remains outside the controller’s control.
 
 ## Quick start
 
+> **Development build:** v0.3.0-rc.5 contains the new embedded WebKit architecture and has not been published as a public release. The currently published v0.2.0 still uses Chrome and Playwright CLI. The instructions below for downloading v0.2.0 refer to that older release; to test the new architecture, build this branch from source or use the locally generated release-candidate archive.
+
+
 ### Requirements
 
-- **macOS on Apple Silicon (ARM64)** — the currently documented build target.
-- **Google Chrome**, installed locally.
-- **Playwright CLI** available as `playwright-cli`. It is **not bundled** with v0.2.0.
-- A ChatGPT account you can sign in to via the dedicated Chrome window.
-- Port `127.0.0.1:8791` available for the local controller.
+- macOS Apple Silicon (ARM64).
+- A ChatGPT account for sign-in directly on chatgpt.com in the embedded WebKit window.
+- Port 127.0.0.1:8791 available for the local controller.
+- No mandatory Chrome or Playwright CLI installation.
 
-For a **source build**, also install [Bun](https://bun.sh/), the [Rust toolchain](https://rustup.rs/), and Apple developer command-line tools (run `xcode-select --install` if needed).
+For source builds only, install Bun, Rust and Apple Command Line Tools. The resulting application uses macOS system WebKit.
 
-Install Playwright CLI:
-
-```bash
-bun add -g @playwright/cli
-playwright-cli --help
-```
-
-The app looks for Playwright CLI on `PATH` and in several common Bun, mise, and Homebrew locations. It uses the locally installed Chrome browser.
+Note: real sign-in compatibility, selectors and upstream APIs require account-based validation. Current Rust and JavaScript tests do not prove every live ChatGPT operation works.
 
 ### 1. Get the application
 
@@ -80,7 +75,7 @@ brew install --cask aungmyokyaw/tap/chatgpt-controller
 
 **Direct download:** visit [GitHub Releases](https://github.com/AungMyoKyaw/chatgpt-controller-desktop/releases/tag/v0.2.0), download `ChatGPT-Controller-v0.2.0-macos-arm64.zip`, verify the digest in `SHA256SUMS`, extract the archive, and move `ChatGPT Controller.app` into Applications.
 
-> Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. The Homebrew cask now attempts to remove quarantine from the installed app bundle recursively as a nonfatal postflight step; direct downloads or blocked launches may still need approval in **System Settings → Privacy & Security**. Chrome and Playwright CLI are separate prerequisites for v0.1.0.
+> Distribution builds are **ad-hoc signed**, but **not Apple Developer ID signed or notarized**. The Homebrew cask now attempts to remove quarantine from the installed app bundle recursively as a nonfatal postflight step; direct downloads or blocked launches may still need approval in **System Settings → Privacy & Security**. Chrome and Playwright CLI are no longer runtime prerequisites for the new implementation.
 
 **Build and launch from source** (with repository access):
 
@@ -91,7 +86,7 @@ make install
 make dev
 ```
 
-`make dev` builds the lightweight native Rust controller sidecar and runs the Tauri application. Bun is used to build frontend and Playwright script assets but its runtime is not shipped in the app. For a distributable local `.app` bundle instead:
+`make dev` runs the Tauri application and in-process Rust controller. Bun is required for the frontend source build but not shipped to end users. For a distributable local `.app` bundle instead:
 
 ```bash
 bun run check
@@ -100,18 +95,18 @@ make build
 open "src-tauri/target/release/bundle/macos/ChatGPT Controller.app"
 ```
 
-`make build` packages the sidecar into the macOS app. It does **not** bundle Chrome or Playwright CLI.
+`make build` packages the controller inside the native macOS app. No Chrome or Playwright CLI installation is needed.
 
 ### 2. Connect your browser
 
 1. Open **ChatGPT Controller → Getting started**.
-2. Select **Open ChatGPT login**. The application launches a dedicated, visible Chrome profile.
-3. **Sign in directly in Chrome.** Do not enter your ChatGPT credentials into the controller.
+2. Select **Open ChatGPT login**. The application opens an isolated system WebKit window.
+3. **Sign in directly in embedded WebKit.** Do not enter your ChatGPT credentials into the controller.
 4. Select **Start controller** and refresh the status indicators.
 5. Open **API access** to copy the localhost URL and controller key.
 6. Open **API explorer** to list available conversations or deliberately send a test message.
 
-The app uses an isolated Playwright session called `chatgpt-controller`. Your normal Chrome profile is not required.
+The app uses an isolated persistent macOS WebKit session. Your normal Chrome profile is not required.
 
 ### 3. Make your first API call
 
@@ -183,36 +178,16 @@ For expected error codes, timeouts, behavior, and the typed client implementatio
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    User["Person signing in directly"] --> Chrome["Dedicated Chrome profile"]
-    UI["ChatGPT Controller.app<br/>Svelte 5 UI"] -->|Tauri commands| Rust["Rust backend<br/>state, process ownership, local key"]
-    Rust -->|starts/stops owned process| Native["Native Rust HTTP controller<br/>127.0.0.1:8791"]
-    Native -->|Playwright CLI installed separately| Chrome
-    Chrome --> Site["chatgpt.com"]
-    Client["Local scripts / Relay sample"] -->|"HTTP + X-Bridge-Key"| Native
-    Rust -->|authenticated explorer requests| Native
-```
+The desktop application is built with Tauri 2, Rust and Svelte 5. Axum is started inside the Tauri process and exposes the same authenticated localhost API. A dedicated, persistent WKWebView handles ChatGPT sign-in, browser-only requests, and UI interaction. The default transport executes same-origin requests inside WebKit. An experimental native Rust HTTP path can be enabled using `CHATGPT_CONTROLLER_ENABLE_NATIVE_HTTP=1`; it caches a token briefly in process memory and falls back to WebKit on unsupported authentication. The native app no longer spawns Playwright CLI or requires a separate Chrome window.
 
-- **Svelte 5 + Tailwind CSS 4:** setup, connection status, API access, explorer, and sample app walkthrough.
-- **Rust + Tauri 2:** native commands, local secret creation, status checks, process management, and the packaged Rust controller sidecar.
-- **Native Rust HTTP sidecar (Axum + Tokio):** localhost request validation, routing, authentication, status caching, and launching Playwright CLI. The release ships an ARM64 Rust executable instead of an ~86 MB Bun binary.
-- **Bun + TypeScript (build and tests only):** Svelte build tooling, existing browser-script source, template generation, and regression tests. Bun is not bundled in the distributed app.
-- **Playwright CLI + Chrome:** interactions with the visible signed-in ChatGPT webpage. Playwright CLI is a **separate installation**, not embedded in the release.
-- **Relay:** an independent example client consuming the same localhost bridge.
+- Local controller: 127.0.0.1:8791; every non-health route needs X-Bridge-Key.
+- Secret location: ~/.config/chatgpt-browser-controller/bridge.key (owner-only permissions).
+- Authentication: real ChatGPT login in the embedded website; no password collection.
+- Sessions: website data managed by WebKit; native access tokens stay in backend process memory and are never returned to API clients.
+- Monitoring: independent concurrent read-only lane and browser fallback, without foregrounding a window.
+- Ownership: the app only stops the localhost server it started; it does not terminate another process on the same port.
 
-### Local files and boundaries
-
-| Location                                              | Purpose                                              |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| `~/.config/chatgpt-browser-controller/bridge.key`     | Locally generated bridge key, file permission `0600` |
-| `~/.config/chatgpt-browser-controller/controller.log` | Local controller process log                         |
-| `~/.playwright-cli/chatgpt-controller-profile`        | Dedicated persistent Chrome profile                  |
-| `127.0.0.1:8791`                                      | Loopback-only HTTP listener                          |
-
-**Sign-in stays in Chrome.** The bridge does not export or replay ChatGPT cookies, bearer tokens, or the user's password. The separate controller key gives local clients access to sensitive chat operations, so treat the key as a secret, protect your macOS account, and do not expose the port through tunneling or reverse proxies. The **Export API config (JSON)** action copies a configuration containing the local key to the clipboard.
-
-If the port is already serving an API, the GUI can detect that server without claiming to own it. **Stop controller** only terminates a process started by the current app instance.
+**Verification boundary:** Rust compilation, Svelte typecheck and deterministic browser scripts pass. Real sign-in and ChatGPT site interaction must still be verified manually. See [Native migration](docs/NATIVE_MIGRATION.md) for evidence and release gates.
 
 ## Relay example
 
@@ -234,7 +209,7 @@ See [Relay integration notes](samples/relay/CONTROLLER-INTEGRATION.md). Relay is
 
 ```text
 chatgpt-controller-desktop/
-├── native-controller/       # Rust API server, Playwright runner and generated browser scripts
+├── native-controller/       # Rust API server, native HTTP transport and WebKit scripts
 ├── controller/              # Original TypeScript reference, Playwright scripts and regression tests
 ├── src/                     # Svelte UI and frontend utilities
 ├── src-tauri/               # Rust commands, Tauri configuration, native application
@@ -252,12 +227,12 @@ chatgpt-controller-desktop/
 
 ```bash
 make install                                    # Install dependencies from bun.lock
-make dev                                        # Build sidecar and run the Tauri dev app
+make dev                                        # Run the Tauri app with embedded controller
 bun test controller                             # Bun controller and typed client tests
 bun run check                                   # Svelte + TypeScript checks
 cargo test --manifest-path src-tauri/Cargo.toml # Rust tests
 bun run build                                   # Frontend build only
-make build                                      # Build native macOS .app with bundled sidecar
+make build                                      # Build the single-process native macOS app
 make format                                     # Format Svelte/TypeScript and Rust sources
 ```
 
@@ -276,14 +251,14 @@ For the rationale behind the light-first **Quiet Control Room** design, see [DES
 
 | Symptom                                   | What to check                                                                                                           |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Playwright CLI missing**                | Install `@playwright/cli` and ensure `playwright-cli --help` works in your shell; restart the desktop app afterward     |
-| **Dedicated browser does not open**       | Verify Chrome is installed and that Playwright CLI can start Chrome with a headed persistent profile                    |
-| **Not authenticated / HTTP 401**          | Sign in to ChatGPT in the **dedicated** Chrome profile; check that the request includes the correct controller key      |
+| **WebKit session unavailable**                | Restart the desktop app; the embedded session is created automatically by Tauri     |
+| **Embedded sign-in does not open**       | Check macOS WebKit availability and the app logs; restart the app if initialization failed                    |
+| **Not authenticated / HTTP 401**          | Sign in to ChatGPT in the **embedded WebKit** window; check that the request includes the correct controller key      |
 | **Controller offline**                    | Start it in Getting started; check whether port `8791` is already in use and review the local controller log            |
 | **HTTP 429**                              | Another browser operation is executing; allow it to finish before retrying                                              |
 | **Conversation not found or unavailable** | The identifier must be a valid conversation UUID and the thread must be accessible in the signed-in browser             |
 | **HTTP 422**                              | Remove unsupported `stream:true` or model selection; use non-streaming requests and `chatgpt-web` if providing a model  |
-| **HTTP 502/503/504 or timeout**           | Inspect the Chrome window; the page may have changed or a submitted message may still finish after the bridge times out |
+| **HTTP 502/503/504 or timeout**           | Inspect the embedded WebKit window; the page may have changed or a submitted message may still finish after the bridge times out |
 | **Downloaded app will not open**          | The release is ad-hoc signed, not notarized; Homebrew clears app quarantine, while direct downloads may require macOS Privacy & Security approval |
 
 ## Limitations
@@ -293,8 +268,8 @@ For the rationale behind the light-first **Quiet Control Room** design, see [DES
 - **One UI-changing browser action at a time.** During an in-flight chat, polling known IDs reports its local in-progress state without triggering additional navigation.
 - **No true token streaming.** The compatibility route returns a completed response, not token-by-token events.
 - **Conversation discovery limitations.** Account-index paging can omit archived or otherwise unlisted chats; the sidebar fallback declares reduced coverage.
-- **Browser-dependent reliability.** A response timeout does **not** guarantee that ChatGPT did not already receive the prompt. Inspect Chrome before sending a duplicate.
-- **Platform and distribution scope.** Only macOS Apple Silicon is documented; Chrome and Playwright CLI remain external prerequisites; the current app bundle is unsigned.
+- **Browser-dependent reliability.** A response timeout does **not** guarantee that ChatGPT did not already receive the prompt. Inspect the ChatGPT conversation before sending a duplicate.
+- **Platform and distribution scope.** Only macOS Apple Silicon is documented; Chrome and Playwright are not runtime prerequisites; packaged builds are ad-hoc signed, not notarized.
 - **Local access is still sensitive.** Anyone able to read the key and reach the local port may perform available chat operations, including destructive ones.
 
 ## Roadmap (ideas, not commitments)

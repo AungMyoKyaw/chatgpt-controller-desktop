@@ -1,5 +1,4 @@
-mod api;
-mod browser;
+use chatgpt_controller_native::api;
 
 use std::sync::Arc;
 use std::time::Duration;

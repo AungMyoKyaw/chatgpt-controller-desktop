@@ -5,7 +5,7 @@ export type ControllerStatus = {
   ownedProcess: boolean;
   browserOpen: boolean;
   browserAuthenticated: boolean;
-  playwrightInstalled: boolean;
+  embeddedBrowserAvailable: boolean;
   apiUrl: string;
   keyAvailable: boolean;
   note: string;

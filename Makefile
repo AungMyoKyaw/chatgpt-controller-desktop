@@ -4,7 +4,6 @@ install:
 	bun install --frozen-lockfile
 
 dev:
-	bun run sidecar
 	bun run tauri dev
 
 build:

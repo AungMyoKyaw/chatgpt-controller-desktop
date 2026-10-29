@@ -10,8 +10,8 @@ the [Homebrew tap](https://github.com/AungMyoKyaw/homebrew-tap).
   tooling, frontend build, Rust formatting, and Rust tests.
 - `.github/workflows/release.yml`: run on pushed `vX.Y.Z` tags. Also supports
   a **manual build-only** run from Actions (does not publish). The workflow
-  validates source; compiles the Tauri application and native Rust controller on a macOS ARM64
-  runner; ad-hoc signs the app and sidecar; verifies the bundle; creates a ZIP
+  validates source; compiles the self-contained native Tauri application on a macOS ARM64
+  runner; ad-hoc signs the app; verifies the bundle; creates a ZIP
   and `SHA256SUMS`; uploads a build artifact; and publishes a GitHub Release.
 - The release job makes a **draft** first and publishes it only after uploading
   verified assets. The repository **must be public** before publishing a tagged

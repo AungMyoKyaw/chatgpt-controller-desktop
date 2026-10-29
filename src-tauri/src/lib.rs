@@ -1,18 +1,21 @@
+use chatgpt_controller_native::api;
 use rand::RngCore;
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Manager, State};
 
+mod webkit;
+
 const API_URL: &str = "http://127.0.0.1:8791";
 const BROWSER_SESSION: &str = "chatgpt-controller";
 struct ControllerState {
-    child: Mutex<Option<Child>>,
+    task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     http: Client,
 }
 #[derive(Serialize)]
@@ -23,7 +26,7 @@ struct Status {
     owned_process: bool,
     browser_open: bool,
     browser_authenticated: bool,
-    playwright_installed: bool,
+    embedded_browser_available: bool,
     api_url: &'static str,
     key_available: bool,
     note: String,
@@ -38,9 +41,6 @@ fn config_dir() -> Result<PathBuf, String> {
 }
 fn key_path() -> Result<PathBuf, String> {
     Ok(config_dir()?.join("bridge.key"))
-}
-fn browser_profile() -> Result<PathBuf, String> {
-    Ok(home()?.join(".playwright-cli/chatgpt-controller-profile"))
 }
 fn ensure_key() -> Result<String, String> {
     let dir = config_dir()?;
@@ -86,78 +86,6 @@ fn ensure_key() -> Result<String, String> {
     }
     Ok(trimmed)
 }
-fn cli_path() -> Option<PathBuf> {
-    let home = home().ok()?;
-    let candidates = [
-        home.join(".bun/bin/playwright-cli"),
-        home.join(".local/bin/playwright-cli"),
-        home.join(".local/share/mise/shims/playwright-cli"),
-        PathBuf::from("/opt/homebrew/bin/playwright-cli"),
-        PathBuf::from("/usr/local/bin/playwright-cli"),
-    ];
-    candidates.into_iter().find(|p| p.is_file()).or_else(|| {
-        std::env::var_os("PATH").and_then(|p| {
-            std::env::split_paths(&p)
-                .map(|d| d.join("playwright-cli"))
-                .find(|f| f.is_file())
-        })
-    })
-}
-fn expanded_path() -> String {
-    let mut dirs = vec![];
-    if let Ok(h) = home() {
-        for p in [".bun/bin", ".local/bin", ".local/share/mise/shims"] {
-            dirs.push(h.join(p).display().to_string());
-        }
-    }
-    dirs.push("/opt/homebrew/bin".into());
-    dirs.push("/usr/local/bin".into());
-    dirs.push("/usr/bin".into());
-    dirs.push("/bin".into());
-    dirs.push(std::env::var("PATH").unwrap_or_default());
-    dirs.join(":")
-}
-fn cli_output(args: &[&str]) -> Result<String, String> {
-    let cli = cli_path().ok_or(
-        "Playwright CLI is not installed. Install it and restart the controller.".to_owned(),
-    )?;
-    let result = Command::new(cli)
-        .args(args)
-        .env("PATH", expanded_path())
-        .output()
-        .map_err(|_| "Could not launch Playwright CLI".to_owned())?;
-    if !result.status.success() {
-        return Err(
-            "Playwright CLI could not complete the operation; check the browser window.".into(),
-        );
-    }
-    Ok(String::from_utf8_lossy(&result.stdout).to_string())
-}
-fn browser_state() -> (bool, bool) {
-    // One lightweight background session check. Do not snapshot the full page
-    // (which is expensive and can accidentally inspect user content).
-    let code = r#"async(page)=>{try{
-      const r=await page.context().request.get("https://chatgpt.com/api/auth/session",{timeout:5000});
-      if(!r.ok())return {authenticated:false};
-      const session=await r.json();
-      return {authenticated:typeof session.accessToken==="string"};
-    }catch{return {authenticated:false}}}"#;
-    let result = match cli_output(&[&format!("-s={BROWSER_SESSION}"), "run-code", code]) {
-        Ok(s) => s,
-        Err(_) => return (false, false),
-    };
-    let parsed = result
-        .split("### Result\n")
-        .nth(1)
-        .and_then(|tail| tail.lines().next())
-        .and_then(|line| serde_json::from_str::<Value>(line).ok());
-    let authenticated = parsed
-        .as_ref()
-        .and_then(|value| value.get("authenticated"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    (true, authenticated)
-}
 async fn health(client: &Client) -> Option<Value> {
     let response = client.get(format!("{API_URL}/health")).send().await.ok()?;
     if response.status().is_success() {
@@ -167,23 +95,19 @@ async fn health(client: &Client) -> Option<Value> {
     }
 }
 fn owned_running(state: &ControllerState) -> bool {
-    let mut guard = match state.child.lock() {
-        Ok(g) => g,
-        Err(_) => return false,
-    };
-    match guard.as_mut() {
-        Some(child) => match child.try_wait() {
-            Ok(None) => true,
-            _ => {
-                *guard = None;
-                false
-            }
-        },
-        None => false,
-    }
+    state
+        .task
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|task| !task.is_finished()))
+        .unwrap_or(false)
 }
+
 #[tauri::command]
-async fn get_status(state: State<'_, ControllerState>) -> Result<Status, String> {
+async fn get_status(
+    app: tauri::AppHandle,
+    state: State<'_, ControllerState>,
+) -> Result<Status, String> {
     let api = health(&state.http).await;
     let busy = api
         .as_ref()
@@ -191,16 +115,15 @@ async fn get_status(state: State<'_, ControllerState>) -> Result<Status, String>
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let running = owned_running(&state);
-    let (browser_open, browser_authenticated) = tauri::async_runtime::spawn_blocking(browser_state)
-        .await
-        .unwrap_or((false, false));
+    let browser_open = webkit::browser_open(&app);
+    let browser_authenticated = webkit::authenticated(&app).await;
     Ok(Status {
         api_online: api.is_some(),
         api_busy: busy,
         owned_process: running,
         browser_open,
         browser_authenticated,
-        playwright_installed: cli_path().is_some(),
+        embedded_browser_available: browser_open,
         api_url: API_URL,
         key_available: key_path()?.is_file(),
         note: if api.is_some() && !running {
@@ -211,109 +134,53 @@ async fn get_status(state: State<'_, ControllerState>) -> Result<Status, String>
     })
 }
 #[tauri::command]
-async fn launch_login() -> Result<String, String> {
-    let profile = browser_profile()?;
-    fs::create_dir_all(&profile).map_err(|e| e.to_string())?;
-    let existing = tauri::async_runtime::spawn_blocking(|| {
-        cli_output(&["list"])
-            .unwrap_or_default()
-            .contains(&format!("- {BROWSER_SESSION}:"))
-    })
-    .await
-    .unwrap_or(false);
-    if existing {
-        return Ok("Your dedicated Chrome browser is already open. Complete sign-in there.".into());
-    }
-    let output = tauri::async_runtime::spawn_blocking(move || {
-        let profile_arg = format!("--profile={}", profile.display());
-        cli_output(&[
-            &format!("-s={BROWSER_SESSION}"),
-            "open",
-            "https://chatgpt.com",
-            "--browser=chrome",
-            "--headed",
-            "--persistent",
-            &profile_arg,
-        ])
-    })
-    .await
-    .map_err(|_| "Browser launch could not complete".to_owned())??;
-    let _ = output; // Never forward a browser snapshot or potentially sensitive page contents to frontend.
-    Ok("Dedicated Chrome opened. Sign in directly in that browser window.".into())
+async fn launch_login(app: tauri::AppHandle) -> Result<String, String> {
+    webkit::show_login(&app)
 }
-fn find_sidecar(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let path = app
-        .path()
-        .resolve("bin/controller", tauri::path::BaseDirectory::Resource)
-        .map_err(|e| e.to_string())?;
-    if path.is_file() {
-        return Ok(path);
-    }
-    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin/controller");
-    if dev.is_file() {
-        return Ok(dev);
-    }
-    Err("Bundled controller executable is missing; rebuild the app.".into())
-}
+
 #[tauri::command]
 async fn start_api(
     app: tauri::AppHandle,
     state: State<'_, ControllerState>,
 ) -> Result<String, String> {
     if health(&state.http).await.is_some() {
-        return Ok(
-            "Local API is already running on port 8791. The app will use the existing server."
-                .into(),
-        );
+        return Ok("Local API is already running on port 8791.".into());
     }
+    webkit::install(&app)?;
     let key = ensure_key()?;
-    let binary = find_sidecar(&app)?;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:8791")
+        .await
+        .map_err(|e| format!("Cannot bind localhost controller: {e}"))?;
     let mut guard = state
-        .child
+        .task
         .lock()
-        .map_err(|_| "Process manager is unavailable")?;
-    if let Some(child) = guard.as_mut() {
-        if child.try_wait().ok().flatten().is_none() {
-            return Ok("Controller startup is already in progress.".into());
-        }
+        .map_err(|_| "Controller manager unavailable")?;
+    if guard.as_ref().is_some_and(|t| !t.is_finished()) {
+        return Ok("Native controller startup is already in progress.".into());
     }
-    let log_path = config_dir()?.join("controller.log");
-    let output = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-        .map_err(|e| e.to_string())?;
-    let child = Command::new(binary)
-        .env("PATH", expanded_path())
-        .env("CHATGPT_BRIDGE_KEY", key)
-        .env("CHATGPT_BROWSER_SESSION", BROWSER_SESSION)
-        .env("CHATGPT_BRIDGE_PORT", "8791")
-        .env(
-            "CHATGPT_CONTROLLER_PARENT_PID",
-            std::process::id().to_string(),
-        )
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(output))
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|_| "Failed to start bundled local controller".to_owned())?;
-    *guard = Some(child);
-    Ok("Controller process launched. Check connection status shortly.".into())
+    let router = api::router(Arc::new(api::Server::new(key, BROWSER_SESSION.to_owned())));
+    *guard = Some(tokio::spawn(async move {
+        if let Err(err) = axum::serve(listener, router).await {
+            eprintln!("Local controller stopped: {err}");
+        }
+    }));
+    Ok("Embedded Rust controller started. No Chrome or Playwright process required.".into())
 }
+
 #[tauri::command]
 fn stop_api(state: State<'_, ControllerState>) -> Result<String, String> {
     let mut guard = state
-        .child
+        .task
         .lock()
-        .map_err(|_| "Process manager unavailable")?;
-    if let Some(mut child) = guard.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-        Ok("Controller stopped. Browser remains open and signed in.".into())
+        .map_err(|_| "Controller manager unavailable")?;
+    if let Some(task) = guard.take() {
+        task.abort();
+        Ok("Embedded Rust controller stopped. ChatGPT session remains available.".into())
     } else {
-        Err("This app did not start the active controller. External processes will not be terminated.".into())
+        Err("This application did not start the active localhost controller.".into())
     }
 }
+
 #[tauri::command]
 fn export_key() -> Result<String, String> {
     ensure_key()
@@ -386,8 +253,35 @@ pub fn run() {
         .build()
         .expect("Failed to initialize HTTP client");
     tauri::Builder::default()
+        .setup(|app| {
+            if std::env::var("CHATGPT_CONTROLLER_TEST_AUTOSTART").as_deref() == Ok("1") {
+                webkit::install(app.handle()).map_err(std::io::Error::other)?;
+                let key = ensure_key().map_err(std::io::Error::other)?;
+                let state = app.state::<ControllerState>();
+                let task = tauri::async_runtime::handle().inner().spawn(async move {
+                    match tokio::net::TcpListener::bind("127.0.0.1:8791").await {
+                        Ok(listener) => {
+                            let router = api::router(Arc::new(api::Server::new(
+                                key,
+                                BROWSER_SESSION.to_owned(),
+                            )));
+                            if let Err(error) = axum::serve(listener, router).await {
+                                eprintln!("Controller stopped: {error}");
+                            }
+                        }
+                        Err(error) => eprintln!("Controller binding failed: {error}"),
+                    }
+                });
+                *state
+                    .task
+                    .lock()
+                    .map_err(|_| std::io::Error::other("Controller state unavailable"))? =
+                    Some(task);
+            }
+            Ok(())
+        })
         .manage(ControllerState {
-            child: Mutex::new(None),
+            task: Mutex::new(None),
             http: client,
         })
         .invoke_handler(tauri::generate_handler![
@@ -400,14 +294,12 @@ pub fn run() {
             api_chat
         ])
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(state) = window.try_state::<ControllerState>() {
-                    if let Ok(mut guard) = state.child.lock() {
-                        if let Some(mut child) = guard.take() {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                        }
-                    }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "chatgpt-session" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if window.label() == "main" {
+                    window.app_handle().exit(0);
                 }
             }
         })
@@ -416,10 +308,9 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(state) = app.try_state::<ControllerState>() {
-                    if let Ok(mut guard) = state.child.lock() {
-                        if let Some(mut child) = guard.take() {
-                            let _ = child.kill();
-                            let _ = child.wait();
+                    if let Ok(mut guard) = state.task.lock() {
+                        if let Some(task) = guard.take() {
+                            task.abort();
                         }
                     }
                 }
@@ -433,14 +324,5 @@ mod tests {
     fn names_and_paths() {
         assert_eq!(API_URL, "http://127.0.0.1:8791");
         assert_eq!(BROWSER_SESSION, "chatgpt-controller");
-    }
-    #[test]
-    fn has_supported_browser_profile() {
-        assert!(
-            browser_profile()
-                .unwrap()
-                .to_string_lossy()
-                .contains("chatgpt-controller-profile")
-        );
     }
 }

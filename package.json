@@ -1,14 +1,13 @@
 {
   "name": "chatgpt-controller-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0-rc.5",
   "description": "",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "sidecar": "bash scripts/build-native-controller.sh",
-    "sidecar:legacy": "bun build --compile controller/bridge-server.ts --outfile src-tauri/bin/controller",
-    "build:all": "bun run sidecar && bun run build",
+    "sidecar": "cargo build --locked --release --manifest-path native-controller/Cargo.toml",
+    "build:all": "bun run build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
