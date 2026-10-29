@@ -7,6 +7,9 @@ cat <<'EOF' | sed "s/RELEASE_VERSION/$tag/g"
 
 Native macOS Apple Silicon application offering an authenticated localhost API for a user-managed ChatGPT session.
 
+### Release candidate status
+This experimental release is for diagnostics. Live message retrieval, conversation status, sending, and sign-in compatibility have not been fully verified; it is not a drop-in replacement for v0.2.0.
+
 ### Install
 Use Homebrew: brew install --cask aungmyokyaw/tap/chatgpt-controller
 Or download the attached ARM64 ZIP and move ChatGPT Controller.app to Applications.

@@ -62,7 +62,10 @@ jobs:
       - name: Verify ZIP content and architecture
         run: |
           unzip -Z -1 dist/ChatGPT-Controller-*.zip | grep -Fx 'ChatGPT Controller.app/Contents/MacOS/chatgpt-controller-desktop'
-          unzip -Z -1 dist/ChatGPT-Controller-*.zip | grep -Fx 'ChatGPT Controller.app/Contents/Resources/bin/controller'
+          if unzip -Z -1 dist/ChatGPT-Controller-*.zip | grep -Fx 'ChatGPT Controller.app/Contents/Resources/bin/controller'; then
+            echo 'Unexpected legacy sidecar in native WebKit bundle' >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: chatgpt-controller-macos-arm64
@@ -100,7 +103,9 @@ jobs:
         run: |
           bash scripts/release-notes.sh "$GITHUB_REF_NAME" > release-notes.md
           ASSETS=(dist/*.zip)
-          gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" dist/SHA256SUMS \
+          FLAGS=()
+          [[ "$GITHUB_REF_NAME" != *-* ]] || FLAGS+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" dist/SHA256SUMS "${FLAGS[@]}" \
             --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
             --title "ChatGPT Controller $GITHUB_REF_NAME" \
             --notes-file release-notes.md

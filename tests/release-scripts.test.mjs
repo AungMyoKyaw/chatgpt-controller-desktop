@@ -20,7 +20,13 @@ test("macOS packager rejects a stale bundle and verifies its resource signature"
   assert.ok(script.includes("Contents/_CodeSignature/CodeResources"));
 });
 
-test("release version and license match three manifests", () => {
+test("release workflow marks prereleases and rejects the legacy sidecar", () => {
+  const workflow = readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
+  assert.match(workflow, /FLAGS\+=\(--prerelease\)/);
+  assert.match(workflow, /Unexpected legacy sidecar/);
+});
+
+test("release version and license match four manifests", () => {
   const result = run("verify-release-version.mjs", [tag]);
   assert.equal(result.status, 0, result.stderr);
 });
