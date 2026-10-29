@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "chatgpt-controller-desktop"
-version = "0.3.0-rc.5"
+version = "0.3.0"
 dependencies = [
  "axum",
  "chatgpt-controller-native",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "chatgpt-controller-native"
-version = "0.3.0-rc.5"
+version = "0.3.0"
 dependencies = [
  "axum",
  "reqwest 0.12.28",

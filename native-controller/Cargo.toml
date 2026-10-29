@@ -1,6 +1,6 @@
 [package]
 name = "chatgpt-controller-native"
-version = "0.3.0-rc.5"
+version = "0.3.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 description = "Native Rust localhost HTTP API controller for a user-managed ChatGPT browser"

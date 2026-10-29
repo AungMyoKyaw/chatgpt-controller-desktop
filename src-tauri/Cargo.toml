@@ -1,6 +1,6 @@
 [package]
 name = "chatgpt-controller-desktop"
-version = "0.3.0-rc.5"
+version = "0.3.0"
 description = "Local ChatGPT browser controller and API manager"
 license = "AGPL-3.0-or-later"
 authors = ["ChatGPT Controller Contributors"]
